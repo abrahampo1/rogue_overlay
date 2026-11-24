@@ -19,6 +19,8 @@ pub struct CatalogSkill {
     pub cooldown: Option<f32>,
     /// Checked by a person against `source`. Unverified values were extracted automatically.
     pub verified: bool,
+    /// Classes (or groups such as Spells, Weapons, Items) that use it, for the panel picker.
+    pub classes: Vec<String>,
     /// Other spellings, e.g. how the hotbar wraps a long name.
     pub aliases: Vec<String>,
     /// Mana % range needed to cast (spells), normal and snap.

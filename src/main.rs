@@ -36,7 +36,10 @@ fn main() {
         ..Default::default()
     };
     let panel_shared = shared.clone();
-    if let Err(e) = eframe::run_native("Rogue Overlay", options, Box::new(move |_cc| Ok(Box::new(panel::Panel::new(panel_shared))))) {
+    if let Err(e) = eframe::run_native("Rogue Overlay", options, Box::new(move |cc| {
+        panel::install_fonts(&cc.egui_ctx);
+        Ok(Box::new(panel::Panel::new(panel_shared)))
+    })) {
         win::message_box(&format!("Could not open the panel: {e}"));
     }
 

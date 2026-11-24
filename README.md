@@ -3,7 +3,7 @@
 An overlay for **Rogue Lineage** (Roblox), written in Rust. It is the successor to RogueCompanion.
 
 - **Mana bar skins**: the game still draws its own mana bar. The overlay puts a transparent frame or ruler on top of it so you can read the percentage at a glance. It ships 8 built-in styles (ruler every 10 %, every 25 %, frames…), the example `ruler.png`, and supports your own images with transparency (png, animated gif, webp). It can optionally show the numeric % by reading the mana from the screen.
-- **Skill cooldowns** on the hotbar work like RogueCompanion: press the slot key (1–0, -, =), then click in game. The slot darkens with a countdown and flashes when it is ready again. A skill library stores names and cooldowns so you can assign them quickly.
+- **Skill cooldowns** on the hotbar work like RogueCompanion: press the slot key (1–0, -, =), then click in game. In the panel the slots are drawn like the game's hotbar; click one to edit it or pick its skill from the catalog (searchable, grouped by class). The slot darkens with a countdown and flashes when it is ready again. A skill library stores names and cooldowns so you can assign them quickly.
 - **Ore timer**: sync it when you see the ores spawn (F5 or the panel button). It then counts down 10 min in a loop, with a warning colour and a sound.
 - **Control panel** to configure everything, and an **edit mode** to place every element with the mouse in game.
 
@@ -67,6 +67,8 @@ The catalog lives in [`catalog/skills.json`](catalog/skills.json). "Update from 
 - `aliases`: other spellings, for example how the hotbar wraps a long name.
 - `mana` / `snap_mana`: mana % range needed to cast a spell.
 - `notes`, `source`: free text and where the value comes from.
+
+- `classes`: classes (or groups such as Spells, Weapons, Items) that use the skill. The panel's skill picker groups by it and its search box matches skill or class names.
 
 To contribute, fix or add entries and open a pull request.
 

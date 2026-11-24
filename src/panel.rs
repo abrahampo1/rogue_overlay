@@ -30,6 +30,9 @@ pub struct Panel {
     thumbs: HashMap<String, Option<TextureHandle>>,
     message: Option<(String, Instant)>,
     catalog: Catalog,
+    /// Slot open in the editor, and the text in the skill picker's search box.
+    edit_slot: Option<usize>,
+    picker_query: String,
     /// "Update catalog" download running on a worker thread.
     catalog_job: Option<std::sync::mpsc::Receiver<Result<Catalog, String>>>,
 }
@@ -49,6 +52,8 @@ impl Panel {
             dirty_since: None,
             images: skins::list_images(),
             catalog: Catalog::load(),
+            edit_slot: None,
+            picker_query: String::new(),
             catalog_job: None,
             thumbs: HashMap::new(),
             message: None,
@@ -400,100 +405,49 @@ impl Panel {
         });
         ui.add_space(4.0);
         let status = self.status.clone();
-        let library = self.cfg.skill_library.clone();
         let catalog = self.catalog.clone();
-        let mut save_preset: Option<SkillPreset> = None;
-        let mut remove: Option<usize> = None;
-        egui::Grid::new("slots").num_columns(6).striped(true).spacing([10.0, 6.0]).show(ui, |ui| {
-            ui.label(RichText::new("Key").strong());
-            ui.label(RichText::new("Skill").strong());
-            ui.label(RichText::new("Cooldown (s)").strong());
-            ui.label(RichText::new("Library").strong());
-            ui.label(RichText::new("Status").strong());
-            ui.label("");
-            ui.end_row();
-            for (i, s) in self.cfg.hotbar.skills.iter_mut().enumerate() {
-                ui.add(egui::TextEdit::singleline(&mut s.key).desired_width(40.0));
-                ui.horizontal(|ui| {
-                    let mut name = ui.add(egui::TextEdit::singleline(&mut s.name).hint_text(format!("Slot {}", i + 1)).desired_width(150.0));
-                    if s.auto {
-                        let read = status.ocr_text.get(i).cloned().unwrap_or_default();
-                        ui.label(RichText::new("auto").small().color(Color32::LIGHT_BLUE))
-                            .on_hover_text(format!("Detected from the hotbar (read: \"{read}\"). Edit the slot to stop auto updates."));
-                    }
-                    if let Some(c) = catalog.best_match(&s.name).filter(|c| crate::catalog::normalize(&c.name) == crate::catalog::normalize(&s.name)) {
-                        name = name.on_hover_text(catalog_tooltip(c));
-                    }
-                    if name.changed() {
-                        s.auto = false;
-                    }
-                });
-                if ui.add(egui::DragValue::new(&mut s.cooldown).range(0.0..=600.0).speed(0.1).suffix(" s")).changed() {
-                    s.auto = false;
+        let n_skills = self.cfg.hotbar.skills.len();
+        if self.edit_slot.is_some_and(|i| i >= n_skills) {
+            self.edit_slot = None;
+        }
+
+        // The hotbar, drawn like the game's: click a slot to edit it below.
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(6.0, 10.0);
+            for i in 0..n_skills {
+                let s = &self.cfg.hotbar.skills[i];
+                let entry = catalog_entry(&catalog, &s.name);
+                let view = SlotView {
+                    key: &s.key,
+                    name: &s.name,
+                    auto: s.auto,
+                    on_hotbar: i < status.slots,
+                    selected: status.selected == Some(i),
+                    editing: self.edit_slot == Some(i),
+                    left: status.cooldowns.get(i).copied().unwrap_or(0.0),
+                    total: s.cooldown,
+                    spell: entry.is_some_and(|c| c.mana.is_some() || c.snap_mana.is_some()),
+                };
+                let mut resp = slot_card(ui, &view);
+                if let Some(c) = entry {
+                    resp = resp.on_hover_text(catalog_tooltip(c));
                 }
-                egui::ComboBox::from_id_salt(("lib", i))
-                    .selected_text("Pick…")
-                    .width(150.0)
-                    .height(400.0)
-                    .show_ui(ui, |ui| {
-                        if !library.is_empty() {
-                            ui.label(RichText::new("My library").strong());
-                        }
-                        for p in &library {
-                            if ui.selectable_label(false, format!("{} · {} s", p.name, p.cooldown)).clicked() {
-                                s.name = p.name.clone();
-                                s.cooldown = p.cooldown;
-                                s.auto = false;
-                            }
-                        }
-                        ui.label(RichText::new("Community catalog").strong());
-                        for c in &catalog.skills {
-                            let cd = c.cooldown.map(|v| format!("{v} s")).unwrap_or_else(|| "? s".into());
-                            let mark = if c.cooldown.is_some() && !c.verified { " *" } else { "" };
-                            if ui.selectable_label(false, format!("{} · {cd}{mark}", c.name)).on_hover_text(catalog_tooltip(c)).clicked() {
-                                s.name = c.name.clone();
-                                if let Some(v) = c.cooldown {
-                                    s.cooldown = v;
-                                }
-                                s.auto = false;
-                            }
-                        }
-                    });
-                let left = status.cooldowns.get(i).copied().unwrap_or(0.0);
-                let sel = status.selected == Some(i);
-                if i >= status.slots {
-                    ui.label(RichText::new("not on hotbar").color(Color32::DARK_GRAY));
-                } else if left > 0.0 {
-                    ui.label(RichText::new(format!("{left:.1} s")).color(Color32::from_rgb(255, 170, 80)));
-                } else if sel {
-                    ui.label(RichText::new("selected").color(Color32::from_rgb(255, 110, 110)));
-                } else {
-                    ui.label(RichText::new("ready").color(Color32::LIGHT_GREEN));
+                if resp.clicked() {
+                    self.edit_slot = if self.edit_slot == Some(i) { None } else { Some(i) };
                 }
-                ui.horizontal(|ui| {
-                    if ui.small_button("Save").on_hover_text("Save to the library").clicked() && !s.name.trim().is_empty() {
-                        save_preset = Some(SkillPreset { name: s.name.trim().to_string(), cooldown: s.cooldown });
-                    }
-                    if ui.small_button("Remove").on_hover_text("Remove slot").clicked() {
-                        remove = Some(i);
-                    }
-                });
-                ui.end_row();
+            }
+            if add_card(ui).on_hover_text("Add a slot").clicked() {
+                self.cfg.hotbar.skills.push(Skill::default());
+                self.edit_slot = Some(self.cfg.hotbar.skills.len() - 1);
             }
         });
-        if let Some(i) = remove {
-            self.cfg.hotbar.skills.remove(i);
-        }
-        if let Some(p) = save_preset {
-            match self.cfg.skill_library.iter_mut().find(|q| q.name.eq_ignore_ascii_case(&p.name)) {
-                Some(q) => q.cooldown = p.cooldown,
-                None => self.cfg.skill_library.push(p),
-            }
+        ui.label(RichText::new("Click a slot to edit it. Dimmed slots are not on your hotbar right now; blue diamond = spell.").color(Color32::GRAY));
+
+        if let Some(i) = self.edit_slot {
+            self.slot_editor(ui, i, &status, &catalog);
         }
         ui.horizontal(|ui| {
-            if ui.button("+ Add slot").clicked() {
-                self.cfg.hotbar.skills.push(Skill::default());
-            }
             if ui.button("Reset cooldowns").clicked() {
                 self.send(Cmd::ResetCooldowns);
             }
@@ -677,6 +631,288 @@ impl Panel {
             }
         });
     }
+}
+
+// ---------------------------------------------------------------- slot editor and picker
+
+impl Panel {
+    fn slot_editor(&mut self, ui: &mut egui::Ui, i: usize, status: &Status, catalog: &Catalog) {
+        let mut remove = false;
+        let mut save_preset: Option<SkillPreset> = None;
+        let mut picked: Option<(String, Option<f32>)> = None;
+        egui::Frame::group(ui.style()).show(ui, |ui| {
+            let s = &mut self.cfg.hotbar.skills[i];
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("Slot {}", i + 1)).strong().size(16.0));
+                if s.auto {
+                    let read = status.ocr_text.get(i).cloned().unwrap_or_default();
+                    ui.label(RichText::new(format!("auto-detected (read: \"{read}\")")).color(Color32::LIGHT_BLUE))
+                        .on_hover_text("Editing the slot stops automatic updates for it.");
+                }
+            });
+            egui::Grid::new(("slot_editor", i)).num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
+                ui.label("Key");
+                ui.add(egui::TextEdit::singleline(&mut s.key).desired_width(60.0));
+                ui.end_row();
+                ui.label("Skill");
+                if ui.add(egui::TextEdit::singleline(&mut s.name).hint_text("Skill name").desired_width(200.0)).changed() {
+                    s.auto = false;
+                }
+                ui.end_row();
+                ui.label("Cooldown");
+                ui.horizontal(|ui| {
+                    if ui.add(egui::DragValue::new(&mut s.cooldown).range(0.0..=600.0).speed(0.1).suffix(" s")).changed() {
+                        s.auto = false;
+                    }
+                    ui.label(RichText::new("0 = not tracked").color(Color32::GRAY));
+                });
+                ui.end_row();
+            });
+            if let Some(c) = catalog_entry(catalog, &s.name) {
+                ui.label(RichText::new(catalog_tooltip(c)).color(Color32::GRAY));
+            }
+            ui.horizontal(|ui| {
+                picked = skill_picker(ui, &mut self.picker_query, &self.cfg.skill_library, catalog);
+                if ui.button("Save to my library").clicked() && !s.name.trim().is_empty() {
+                    save_preset = Some(SkillPreset { name: s.name.trim().to_string(), cooldown: s.cooldown });
+                }
+                if ui.button("Remove slot").clicked() {
+                    remove = true;
+                }
+            });
+        });
+        if let Some((name, cd)) = picked {
+            let s = &mut self.cfg.hotbar.skills[i];
+            s.name = name;
+            if let Some(v) = cd {
+                s.cooldown = v;
+            }
+            s.auto = false;
+        }
+        if let Some(p) = save_preset {
+            match self.cfg.skill_library.iter_mut().find(|q| q.name.eq_ignore_ascii_case(&p.name)) {
+                Some(q) => q.cooldown = p.cooldown,
+                None => self.cfg.skill_library.push(p),
+            }
+        }
+        if remove {
+            self.cfg.hotbar.skills.remove(i);
+            self.edit_slot = None;
+        }
+    }
+}
+
+/// Exact (normalised) catalog entry for a slot name.
+fn catalog_entry<'a>(catalog: &'a Catalog, name: &str) -> Option<&'a crate::catalog::CatalogSkill> {
+    let n = crate::catalog::normalize(name);
+    (!n.is_empty()).then(|| catalog.skills.iter().find(|c| crate::catalog::normalize(&c.name) == n)).flatten()
+}
+
+/// "Pick a skill" menu: search box, the user's library, then the catalog grouped by class.
+/// Returns the picked (name, cooldown).
+fn skill_picker(ui: &mut egui::Ui, query: &mut String, library: &[SkillPreset], catalog: &Catalog) -> Option<(String, Option<f32>)> {
+    let mut picked = None;
+    ui.menu_button("Pick a skill…", |ui| {
+        ui.set_min_width(280.0);
+        let search = ui.add(egui::TextEdit::singleline(query).hint_text("Search skill or class…").desired_width(260.0));
+        if !search.has_focus() && query.is_empty() {
+            search.request_focus();
+        }
+        let q = crate::catalog::normalize(query);
+        let hit = |s: &str| q.is_empty() || crate::catalog::normalize(s).contains(&q);
+        let searching = !q.is_empty();
+        egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
+            let lib: Vec<&SkillPreset> = library.iter().filter(|p| hit(&p.name)).collect();
+            if !lib.is_empty() {
+                egui::CollapsingHeader::new(RichText::new(format!("My library ({})", lib.len())).strong())
+                    .id_salt("pick_lib")
+                    .open(searching.then_some(true))
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        for p in lib {
+                            if ui.selectable_label(false, format!("{} · {} s", p.name, p.cooldown)).clicked() {
+                                picked = Some((p.name.clone(), Some(p.cooldown)));
+                                ui.close_menu();
+                            }
+                        }
+                    });
+            }
+            let mut groups: std::collections::BTreeMap<&str, Vec<&crate::catalog::CatalogSkill>> = Default::default();
+            for c in &catalog.skills {
+                for class in &c.classes {
+                    if hit(&c.name) || hit(class) {
+                        groups.entry(class.as_str()).or_default().push(c);
+                    }
+                }
+            }
+            if groups.is_empty() {
+                ui.label(RichText::new("No matches").color(Color32::GRAY));
+            }
+            for (class, skills) in groups {
+                egui::CollapsingHeader::new(format!("{class} ({})", skills.len()))
+                    .id_salt(("pick_class", class))
+                    .open(searching.then_some(true))
+                    .show(ui, |ui| {
+                        for c in skills {
+                            let cd = c.cooldown.map(|v| format!("{v} s")).unwrap_or_else(|| "? s".into());
+                            let mark = if c.cooldown.is_some() && !c.verified { " *" } else { "" };
+                            if ui.selectable_label(false, format!("{} · {cd}{mark}", c.name)).on_hover_text(catalog_tooltip(c)).clicked() {
+                                picked = Some((c.name.clone(), c.cooldown));
+                                ui.close_menu();
+                            }
+                        }
+                    });
+            }
+        });
+    });
+    picked
+}
+
+// ---------------------------------------------------------------- game-style hotbar slots
+
+struct SlotView<'a> {
+    key: &'a str,
+    name: &'a str,
+    auto: bool,
+    on_hotbar: bool,
+    selected: bool,
+    editing: bool,
+    left: f32,
+    total: f32,
+    spell: bool,
+}
+
+const SLOT_SIZE: Vec2 = Vec2::new(70.0, 84.0);
+
+fn game_font(size: f32) -> egui::FontId {
+    egui::FontId::new(size, egui::FontFamily::Name(GAME_FONT.into()))
+}
+
+fn diamond(p: &egui::Painter, c: egui::Pos2, r: f32, fill: Color32, edge: Color32) {
+    let pts = vec![c + Vec2::new(0.0, -r), c + Vec2::new(r, 0.0), c + Vec2::new(0.0, r), c + Vec2::new(-r, 0.0)];
+    p.add(egui::Shape::convex_polygon(pts, fill, Stroke::new(1.0_f32, edge)));
+}
+
+/// One hotbar slot drawn like the game's: beige body in a dark frame with corner ornaments,
+/// key tab on top, the name in a serif font, a diamond below (blue = spell). The selected slot
+/// lights up with a red frame, and a running cooldown darkens it with the seconds left.
+fn slot_card(ui: &mut egui::Ui, v: &SlotView) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(SLOT_SIZE, Sense::click());
+    let p = ui.painter();
+    let fade = |c: Color32| if v.on_hotbar { c } else { c.gamma_multiply(0.45) };
+    let dark = fade(Color32::from_rgb(47, 40, 33));
+    let frame = fade(if v.selected { Color32::from_rgb(215, 55, 55) } else { Color32::from_rgb(120, 104, 82) });
+    let hover = resp.hovered();
+    let body_col = fade(if v.selected {
+        Color32::from_rgb(247, 243, 235)
+    } else if hover {
+        Color32::from_rgb(228, 218, 207)
+    } else {
+        Color32::from_rgb(215, 203, 191)
+    });
+    let ink = fade(Color32::from_rgb(70, 58, 50));
+
+    let body = egui::Rect::from_min_max(rect.min + Vec2::new(5.0, 13.0), rect.max - Vec2::new(5.0, 11.0));
+    p.rect_filled(body.expand(4.0), 3.0, dark);
+    p.rect_filled(body.expand(2.5), 2.0, frame);
+    p.rect_filled(body.expand(1.0), 1.0, dark);
+    p.rect_filled(body, 0.0, body_col);
+    for c in [body.left_top(), body.right_top(), body.left_bottom(), body.right_bottom()] {
+        diamond(p, c, 3.5, frame, dark);
+    }
+
+    // Name, wrapped to the slot width (up to 3 lines), in the game-like serif font.
+    let font = game_font(12.5);
+    let width = |s: &str| ui.fonts(|f| f.layout_no_wrap(s.to_string(), font.clone(), ink).size().x);
+    let max_w = body.width() - 6.0;
+    let mut lines: Vec<String> = Vec::new();
+    for word in v.name.split_whitespace() {
+        match lines.last_mut() {
+            Some(l) if width(&format!("{l} {word}")) <= max_w => {
+                l.push(' ');
+                l.push_str(word);
+            }
+            _ => {
+                // A word wider than the slot is cut across lines, like the game does
+                // ("Interrogati" / "on").
+                let mut part = String::new();
+                for ch in word.chars() {
+                    part.push(ch);
+                    if width(&part) > max_w && part.chars().count() > 1 {
+                        part.pop();
+                        lines.push(std::mem::take(&mut part));
+                        part.push(ch);
+                    }
+                }
+                lines.push(part);
+            }
+        }
+    }
+    lines.truncate(3);
+    let lh = 13.0;
+    let y0 = body.center().y - lh * (lines.len() as f32 - 1.0) / 2.0;
+    for (k, l) in lines.iter().enumerate() {
+        p.text(egui::pos2(body.center().x, y0 + lh * k as f32), egui::Align2::CENTER_CENTER, l, font.clone(), ink);
+    }
+
+    // Running cooldown: shade that drains top to bottom + seconds.
+    if v.left > 0.0 && v.total > 0.0 {
+        let frac = (v.left / v.total).clamp(0.0, 1.0);
+        let shade = egui::Rect::from_min_max(egui::pos2(body.left(), body.bottom() - body.height() * frac), body.max);
+        p.rect_filled(shade, 0.0, Color32::from_black_alpha(150));
+        let txt = if v.left < 3.0 { format!("{:.1}", v.left) } else { format!("{}", v.left.ceil() as i32) };
+        p.text(body.center(), egui::Align2::CENTER_CENTER, txt, game_font(20.0), Color32::WHITE);
+    }
+
+    // Key tab.
+    let tab = egui::Rect::from_center_size(egui::pos2(body.center().x, body.top() - 3.0), Vec2::new(17.0, 13.0));
+    p.rect_filled(tab, 1.0, dark);
+    p.rect_filled(tab.shrink(1.5), 0.0, fade(Color32::from_rgb(255, 221, 162)));
+    p.text(tab.center(), egui::Align2::CENTER_CENTER, v.key, game_font(10.5), dark);
+
+    // Bottom diamond: blue for spells, red for the rest.
+    let gem = if v.spell { Color32::from_rgb(70, 120, 215) } else { Color32::from_rgb(185, 45, 45) };
+    diamond(p, egui::pos2(body.center().x, body.bottom() + 6.0), 4.5, fade(gem), dark);
+
+    if v.auto {
+        p.circle_filled(body.right_top() + Vec2::new(-5.0, 5.0), 2.5, Color32::from_rgb(90, 170, 255));
+    }
+    if v.editing {
+        p.rect_stroke(rect.expand(1.0), 4.0, Stroke::new(2.0_f32, Color32::from_rgb(120, 190, 255)), StrokeKind::Outside);
+    }
+    resp
+}
+
+/// The "+" card at the end of the hotbar.
+fn add_card(ui: &mut egui::Ui) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(SLOT_SIZE, Sense::click());
+    let p = ui.painter();
+    let body = egui::Rect::from_min_max(rect.min + Vec2::new(5.0, 13.0), rect.max - Vec2::new(5.0, 11.0));
+    let col = if resp.hovered() { Color32::from_gray(150) } else { Color32::from_gray(90) };
+    p.rect_stroke(body, 3.0, Stroke::new(1.5_f32, col), StrokeKind::Inside);
+    p.text(body.center(), egui::Align2::CENTER_CENTER, "+", egui::FontId::proportional(26.0), col);
+    resp
+}
+
+/// Name of the serif font family used for the game-style slots.
+pub const GAME_FONT: &str = "game";
+
+/// Registers a serif font (Georgia, else Times New Roman from Windows) as the "game" family,
+/// falling back to egui's default font if neither is found.
+pub fn install_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    let dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".into());
+    let serif = ["georgia.ttf", "times.ttf"]
+        .iter()
+        .find_map(|f| std::fs::read(std::path::Path::new(&dir).join("Fonts").join(f)).ok());
+    let mut family = Vec::new();
+    if let Some(bytes) = serif {
+        fonts.font_data.insert(GAME_FONT.into(), std::sync::Arc::new(egui::FontData::from_owned(bytes)));
+        family.push(GAME_FONT.to_string());
+    }
+    family.extend(fonts.families.get(&egui::FontFamily::Proportional).cloned().unwrap_or_default());
+    fonts.families.insert(egui::FontFamily::Name(GAME_FONT.into()), family);
+    ctx.set_fonts(fonts);
 }
 
 // ---------------------------------------------------------------- catalog cards

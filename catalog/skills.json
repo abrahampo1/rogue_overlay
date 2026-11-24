@@ -1,32 +1,45 @@
 {
- "version": 2,
- "notes": "Community skill catalog for Rogue Overlay. cooldown is in seconds (null = unknown). verified = checked by a person; unverified values were extracted automatically from the Rogue Lineage wiki (see source) and may be wrong. mana / snap_mana = mana % range needed to cast a spell. aliases = other spellings, e.g. how the hotbar wraps long names. Fix or add entries and open a pull request.",
+ "version": 3,
+ "notes": "Community skill catalog for Rogue Overlay. cooldown is in seconds (null = unknown). verified = checked by a person; unverified values were extracted automatically from the Rogue Lineage wiki (see source) and may be wrong. mana / snap_mana = mana % range needed to cast a spell. classes = classes (or groups such as Spells, Weapons, Items) that use the skill, for the panel picker. aliases = other spellings, e.g. how the hotbar wraps long names. Fix or add entries and open a pull request.",
  "skills": [
   {
    "name": "Action Surge",
    "cooldown": 20,
    "verified": true,
    "source": "https://rogue-lineage.fandom.com/wiki/Warrior",
-   "notes": "Cooldown starts after the 2 s effect ends."
+   "notes": "Cooldown starts after the 2 s effect ends.",
+   "classes": [
+    "Warrior"
+   ]
   },
   {
    "name": "Aerial",
    "cooldown": 10.0,
    "verified": false,
    "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Sage",
-   "notes": "Wiki pages disagree: 0s, 10s"
+   "notes": "Wiki pages disagree: 0s, 10s",
+   "classes": [
+    "Dragon Sage",
+    "Shinobi"
+   ]
   },
   {
    "name": "Agility",
    "cooldown": 30,
    "verified": true,
-   "source": "https://rogue-lineage.fandom.com/wiki/Ashiin"
+   "source": "https://rogue-lineage.fandom.com/wiki/Ashiin",
+   "classes": [
+    "Ashiin (race)"
+   ]
   },
   {
    "name": "Angel Ray",
    "cooldown": 20.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Saintsworn"
+   "source": "https://rogue-lineage.fandom.com/wiki/Saintsworn",
+   "classes": [
+    "Saintsworn"
+   ]
   },
   {
    "name": "Armis",
@@ -40,56 +53,86 @@
     70.0,
     85.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Armis"
+   "source": "https://rogue-lineage.fandom.com/wiki/Armis",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Aura of Despair",
    "cooldown": 40.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Abomination"
+   "source": "https://rogue-lineage.fandom.com/wiki/Abomination",
+   "classes": [
+    "Abomination"
+   ]
   },
   {
    "name": "Autumn Rain",
    "cooldown": 3.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Shura"
+   "source": "https://rogue-lineage.fandom.com/wiki/Shura",
+   "classes": [
+    "Shura"
+   ]
   },
   {
    "name": "Bane",
    "cooldown": 30.0,
    "verified": false,
    "source": "https://rogue-lineage.fandom.com/wiki/Assassin_Dragon_Knight",
-   "notes": "Wiki pages disagree: 25s, 30s"
+   "notes": "Wiki pages disagree: 25s, 30s",
+   "classes": [
+    "Assassin Dragon Knight",
+    "Assassin Necromancer"
+   ]
   },
   {
    "name": "Blade Flash",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Ashigaru"
+   "source": "https://rogue-lineage.fandom.com/wiki/Ashigaru",
+   "classes": [
+    "Ashigaru",
+    "Samurai Botanist",
+    "Samurai Monk"
+   ]
   },
   {
    "name": "Bladeflip",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Stagehand"
+   "source": "https://rogue-lineage.fandom.com/wiki/Stagehand",
+   "classes": [
+    "Stagehand"
+   ]
   },
   {
    "name": "Block Bait",
    "cooldown": 5.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Shinobi"
+   "source": "https://rogue-lineage.fandom.com/wiki/Shinobi",
+   "classes": [
+    "Shinobi"
+   ]
   },
   {
    "name": "Bloodletter",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Bloodletter"
+   "source": "https://rogue-lineage.fandom.com/wiki/Bloodletter",
+   "classes": [
+    "Bloodletter"
+   ]
   },
   {
    "name": "Call Drake",
    "cooldown": 30.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Rider"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Rider",
+   "classes": [
+    "Dragon Rider"
+   ]
   },
   {
    "name": "Celeritas",
@@ -104,13 +147,19 @@
     85.0
    ],
    "source": "https://rogue-lineage.fandom.com/wiki/Celeritas",
-   "notes": "Snap Celeritas has a ~5 s cooldown; normal cast has none listed."
+   "notes": "Snap Celeritas has a ~5 s cooldown; normal cast has none listed.",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Chain Pull",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Deep_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Deep_Knight",
+   "classes": [
+    "Deep Knight"
+   ]
   },
   {
    "name": "Contrarium",
@@ -124,79 +173,121 @@
     70.0,
     90.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Contrarium"
+   "source": "https://rogue-lineage.fandom.com/wiki/Contrarium",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Dagger Throw",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Thief"
+   "source": "https://rogue-lineage.fandom.com/wiki/Thief",
+   "classes": [
+    "Thief"
+   ]
   },
   {
    "name": "Deep Sacrifice",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Deep_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Deep_Knight",
+   "classes": [
+    "Deep Knight"
+   ]
   },
   {
    "name": "Deflecting Spin",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Abyss_Dancer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Abyss_Dancer",
+   "classes": [
+    "Abyss Dancer"
+   ]
   },
   {
    "name": "Demon Flip",
    "cooldown": 8.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Oni"
+   "source": "https://rogue-lineage.fandom.com/wiki/Oni",
+   "classes": [
+    "Oni"
+   ]
   },
   {
    "name": "Disarming Strike",
    "cooldown": 30.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Lord's_Training_(Sword_Skills)"
+   "source": "https://rogue-lineage.fandom.com/wiki/Lord's_Training_(Sword_Skills)",
+   "classes": [
+    "Lord's Training (Sword Skills)"
+   ]
   },
   {
    "name": "Dominus",
    "cooldown": 20.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Master_Illusionist"
+   "source": "https://rogue-lineage.fandom.com/wiki/Master_Illusionist",
+   "classes": [
+    "Master Illusionist"
+   ]
   },
   {
    "name": "Double Jump",
    "cooldown": 4,
    "verified": true,
-   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer",
+   "classes": [
+    "Whisperer"
+   ]
   },
   {
    "name": "Dragon Roar",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Knight",
+   "classes": [
+    "Dragon Knight",
+    "Dragon Knight Akuma",
+    "Dragon Knight Necromancer",
+    "Spearfisher Dragon Knight"
+   ]
   },
   {
    "name": "Elegant Slash",
    "cooldown": 10,
    "verified": true,
-   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer",
+   "classes": [
+    "Whisperer"
+   ]
   },
   {
    "name": "Enshroud",
    "cooldown": 45.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Duskblade"
+   "source": "https://rogue-lineage.fandom.com/wiki/Duskblade",
+   "classes": [
+    "Duskblade"
+   ]
   },
   {
    "name": "Ensnaring Strikes",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Rider"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Rider",
+   "classes": [
+    "Dragon Rider"
+   ]
   },
   {
    "name": "Ferula",
    "cooldown": null,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Ferula"
+   "source": "https://rogue-lineage.fandom.com/wiki/Ferula",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Fimbulvetr",
@@ -210,18 +301,29 @@
     70.0,
     80.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Fimbulvetr"
+   "source": "https://rogue-lineage.fandom.com/wiki/Fimbulvetr",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Floresco",
    "cooldown": null,
-   "verified": false
+   "verified": false,
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Flowing Counter",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Ashigaru"
+   "source": "https://rogue-lineage.fandom.com/wiki/Ashigaru",
+   "classes": [
+    "Ashigaru",
+    "Samurai Botanist",
+    "Samurai Monk"
+   ]
   },
   {
    "name": "Gate",
@@ -231,7 +333,10 @@
     75.0,
     85.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Gate"
+   "source": "https://rogue-lineage.fandom.com/wiki/Gate",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Gelidus",
@@ -246,43 +351,68 @@
     100.0
    ],
    "source": "https://rogue-lineage.fandom.com/wiki/Gelidus",
-   "notes": "A target cannot be hit by Gelidus again for ~10 s (not a caster cooldown)."
+   "notes": "A target cannot be hit by Gelidus again for ~10 s (not a caster cooldown).",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Grapple",
    "cooldown": 8.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Shinobi"
+   "source": "https://rogue-lineage.fandom.com/wiki/Shinobi",
+   "classes": [
+    "Shinobi"
+   ]
   },
   {
    "name": "Great Cyclone",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Abyss_Dancer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Abyss_Dancer",
+   "classes": [
+    "Abyss Dancer"
+   ]
   },
   {
    "name": "Grounded",
    "cooldown": 8.0,
    "verified": false,
    "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Sage",
-   "notes": "Wiki pages disagree: 8s, 10s"
+   "notes": "Wiki pages disagree: 8s, 10s",
+   "classes": [
+    "Dragon Sage",
+    "Shinobi"
+   ]
   },
   {
    "name": "Harpoon",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Marine_(Super_chef)"
+   "source": "https://rogue-lineage.fandom.com/wiki/Marine_(Super_chef)",
+   "classes": [
+    "Marine (Super chef)",
+    "Spearfisher",
+    "Spearfisher Church Knight",
+    "Spearfisher Dragon Knight"
+   ]
   },
   {
    "name": "Health Potion",
    "cooldown": null,
-   "verified": false
+   "verified": false,
+   "classes": [
+    "Items"
+   ]
   },
   {
    "name": "Heroic Volley",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Rider"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Rider",
+   "classes": [
+    "Dragon Rider"
+   ]
   },
   {
    "name": "Hoppa",
@@ -297,7 +427,10 @@
     65.0
    ],
    "source": "https://rogue-lineage.fandom.com/wiki/Hoppa",
-   "notes": "Snap Hoppa puts Hoppa on a 5 s cooldown."
+   "notes": "Snap Hoppa puts Hoppa on a 5 s cooldown.",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Howler Summoning",
@@ -307,19 +440,30 @@
     60.0,
     85.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Howler_Summoning"
+   "source": "https://rogue-lineage.fandom.com/wiki/Howler_Summoning",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Hunter's Focus",
    "cooldown": 40.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Marine_(Super_chef)"
+   "source": "https://rogue-lineage.fandom.com/wiki/Marine_(Super_chef)",
+   "classes": [
+    "Marine (Super chef)",
+    "Spearfisher Church Knight",
+    "Spearfisher Dragon Knight"
+   ]
   },
   {
    "name": "Hyper Body",
    "cooldown": 90.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Sigil_Knight_Commander"
+   "source": "https://rogue-lineage.fandom.com/wiki/Sigil_Knight_Commander",
+   "classes": [
+    "Sigil Knight Commander"
+   ]
   },
   {
    "name": "Hystericus",
@@ -333,7 +477,10 @@
     10.0,
     40.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Hystericus"
+   "source": "https://rogue-lineage.fandom.com/wiki/Hystericus",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Igelti",
@@ -343,7 +490,10 @@
     0.0,
     100.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Igelti"
+   "source": "https://rogue-lineage.fandom.com/wiki/Igelti",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Ignis",
@@ -357,13 +507,19 @@
     50.0,
     60.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Ignis"
+   "source": "https://rogue-lineage.fandom.com/wiki/Ignis",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Impale",
    "cooldown": 18.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Church_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Church_Knight",
+   "classes": [
+    "Church Knight"
+   ]
   },
   {
    "name": "Interrogation",
@@ -373,49 +529,75 @@
     "Interrogati on"
    ],
    "source": "https://rogue-lineage.fandom.com/wiki/Monk_Spy",
-   "notes": "Cooldown not listed on the wiki."
+   "notes": "Cooldown not listed on the wiki.",
+   "classes": [
+    "Spy"
+   ]
   },
   {
    "name": "Knifedance",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Stagehand"
+   "source": "https://rogue-lineage.fandom.com/wiki/Stagehand",
+   "classes": [
+    "Stagehand"
+   ]
   },
   {
    "name": "Krusa",
    "cooldown": 7.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Crystal_Sage"
+   "source": "https://rogue-lineage.fandom.com/wiki/Crystal_Sage",
+   "classes": [
+    "Crystal Sage"
+   ]
   },
   {
    "name": "Lethality",
    "cooldown": 30.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Assassin_Dragon_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Assassin_Dragon_Knight",
+   "classes": [
+    "Assassin Dragon Knight"
+   ]
   },
   {
    "name": "Leviathan Plunge",
    "cooldown": 45.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Deep_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Deep_Knight",
+   "classes": [
+    "Deep Knight"
+   ]
   },
   {
    "name": "Light Piercer",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Church_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Church_Knight",
+   "classes": [
+    "Church Knight",
+    "Church Knight Akuma",
+    "Monk Church Knight"
+   ]
   },
   {
    "name": "Lightning Drop",
    "cooldown": 8.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Sage"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Sage",
+   "classes": [
+    "Dragon Sage"
+   ]
   },
   {
    "name": "Lightning Elbow",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Sage"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Sage",
+   "classes": [
+    "Dragon Sage"
+   ]
   },
   {
    "name": "Manus Dei",
@@ -429,31 +611,48 @@
     50.0,
     60.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Manus_Dei"
+   "source": "https://rogue-lineage.fandom.com/wiki/Manus_Dei",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Mirgeti",
    "cooldown": 3.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Crystal_Sage"
+   "source": "https://rogue-lineage.fandom.com/wiki/Crystal_Sage",
+   "classes": [
+    "Crystal Sage"
+   ]
   },
   {
    "name": "Monastic Stance",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Greatsword_Monk"
+   "source": "https://rogue-lineage.fandom.com/wiki/Greatsword_Monk",
+   "classes": [
+    "Greatsword Monk",
+    "Monk Church Knight",
+    "Samurai Monk"
+   ]
   },
   {
    "name": "Mori",
    "cooldown": null,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Mori"
+   "source": "https://rogue-lineage.fandom.com/wiki/Mori",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Munificus",
    "cooldown": null,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Munificus"
+   "source": "https://rogue-lineage.fandom.com/wiki/Munificus",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Needle's Eye",
@@ -462,7 +661,10 @@
    "aliases": [
     "Needles Eye"
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer",
+   "classes": [
+    "Whisperer"
+   ]
   },
   {
    "name": "Nosferatus",
@@ -472,13 +674,19 @@
     95.0,
     100.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Nosferatus"
+   "source": "https://rogue-lineage.fandom.com/wiki/Nosferatus",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Pavise",
    "cooldown": 60.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Saintsworn"
+   "source": "https://rogue-lineage.fandom.com/wiki/Saintsworn",
+   "classes": [
+    "Saintsworn"
+   ]
   },
   {
    "name": "Percutiens",
@@ -492,14 +700,20 @@
     70.0,
     80.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Percutiens"
+   "source": "https://rogue-lineage.fandom.com/wiki/Percutiens",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Pommel Strike",
    "cooldown": 15,
    "verified": true,
    "source": "https://rogue-lineage.fandom.com/wiki/Warrior",
-   "notes": "Cooldown starts after the animation ends."
+   "notes": "Cooldown starts after the animation ends.",
+   "classes": [
+    "Warrior"
+   ]
   },
   {
    "name": "Pondus",
@@ -513,30 +727,45 @@
     20.0,
     30.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Pondus"
+   "source": "https://rogue-lineage.fandom.com/wiki/Pondus",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Power Surge",
    "cooldown": 17.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Journeyman"
+   "source": "https://rogue-lineage.fandom.com/wiki/Journeyman",
+   "classes": [
+    "Journeyman"
+   ]
   },
   {
    "name": "Rapier",
    "cooldown": null,
-   "verified": false
+   "verified": false,
+   "classes": [
+    "Weapons"
+   ]
   },
   {
    "name": "Rising Cloud",
    "cooldown": 3.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Shura"
+   "source": "https://rogue-lineage.fandom.com/wiki/Shura",
+   "classes": [
+    "Shura"
+   ]
   },
   {
    "name": "Rising Dragon",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Knight_Akuma"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Knight_Akuma",
+   "classes": [
+    "Dragon Knight Akuma"
+   ]
   },
   {
    "name": "Sagitta Sol",
@@ -550,34 +779,52 @@
     40.0,
     70.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Sagitta_Sol"
+   "source": "https://rogue-lineage.fandom.com/wiki/Sagitta_Sol",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Sanguinity",
    "cooldown": 16.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Duskblade"
+   "source": "https://rogue-lineage.fandom.com/wiki/Duskblade",
+   "classes": [
+    "Duskblade"
+   ]
   },
   {
    "name": "Scathing Strike",
    "cooldown": 12.5,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Journeyman"
+   "source": "https://rogue-lineage.fandom.com/wiki/Journeyman",
+   "classes": [
+    "Journeyman"
+   ]
   },
   {
    "name": "Scroll of Armis",
    "cooldown": null,
-   "verified": false
+   "verified": false,
+   "classes": [
+    "Items"
+   ]
   },
   {
    "name": "Scroll of Celeritas",
    "cooldown": null,
-   "verified": false
+   "verified": false,
+   "classes": [
+    "Items"
+   ]
   },
   {
    "name": "Scroll of Tenebris",
    "cooldown": null,
-   "verified": false
+   "verified": false,
+   "classes": [
+    "Items"
+   ]
   },
   {
    "name": "Scrupus",
@@ -587,20 +834,29 @@
     1.0,
     100.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Scrupus"
+   "source": "https://rogue-lineage.fandom.com/wiki/Scrupus",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Shoulder Bash",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Warlord"
+   "source": "https://rogue-lineage.fandom.com/wiki/Warlord",
+   "classes": [
+    "Warlord"
+   ]
   },
   {
    "name": "Shoulder Throw",
    "cooldown": 5,
    "verified": true,
    "source": "https://rogue-lineage.fandom.com/wiki/Shoulder_Throw",
-   "notes": "Shoulder Throw page says ~5s, Ashiin page says 6s."
+   "notes": "Shoulder Throw page says ~5s, Ashiin page says 6s.",
+   "classes": [
+    "Ashiin (race)"
+   ]
   },
   {
    "name": "Shrieker Summoning",
@@ -610,19 +866,30 @@
     20.0,
     30.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Shrieker_Summoning"
+   "source": "https://rogue-lineage.fandom.com/wiki/Shrieker_Summoning",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Skewer",
    "cooldown": 12.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Marine_(Super_chef)"
+   "source": "https://rogue-lineage.fandom.com/wiki/Marine_(Super_chef)",
+   "classes": [
+    "Marine (Super chef)",
+    "Spearfisher Church Knight",
+    "Spearfisher Dragon Knight"
+   ]
   },
   {
    "name": "Smite",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Saintsworn"
+   "source": "https://rogue-lineage.fandom.com/wiki/Saintsworn",
+   "classes": [
+    "Saintsworn"
+   ]
   },
   {
    "name": "Snarvindur",
@@ -636,37 +903,58 @@
     20.0,
     30.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Snarvindur"
+   "source": "https://rogue-lineage.fandom.com/wiki/Snarvindur",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Soul Siphon",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Abomination"
+   "source": "https://rogue-lineage.fandom.com/wiki/Abomination",
+   "classes": [
+    "Abomination"
+   ]
   },
   {
    "name": "Spear Crusher",
    "cooldown": 9.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Knight",
+   "classes": [
+    "Dragon Knight",
+    "Dragon Knight Akuma",
+    "Dragon Knight Necromancer",
+    "Spearfisher Dragon Knight"
+   ]
   },
   {
    "name": "Spin Kick",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Knight_Akuma"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Knight_Akuma",
+   "classes": [
+    "Dragon Knight Akuma"
+   ]
   },
   {
    "name": "Spindulys",
    "cooldown": 3.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Crystal_Sage"
+   "source": "https://rogue-lineage.fandom.com/wiki/Crystal_Sage",
+   "classes": [
+    "Crystal Sage"
+   ]
   },
   {
    "name": "Spinning Soul",
    "cooldown": 20.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Abyss_Dancer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Abyss_Dancer",
+   "classes": [
+    "Abyss Dancer"
+   ]
   },
   {
    "name": "Sraunus",
@@ -676,12 +964,18 @@
     1.0,
     50.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Sraunus"
+   "source": "https://rogue-lineage.fandom.com/wiki/Sraunus",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Sword",
    "cooldown": null,
-   "verified": false
+   "verified": false,
+   "classes": [
+    "Weapons"
+   ]
   },
   {
    "name": "Telorum",
@@ -695,13 +989,19 @@
     70.0,
     80.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Telorum"
+   "source": "https://rogue-lineage.fandom.com/wiki/Telorum",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Tempest Soul",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Vind"
+   "source": "https://rogue-lineage.fandom.com/wiki/Vind",
+   "classes": [
+    "Vind"
+   ]
   },
   {
    "name": "Tenebris",
@@ -715,7 +1015,10 @@
     45.0,
     70.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Tenebris"
+   "source": "https://rogue-lineage.fandom.com/wiki/Tenebris",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Terra Maledicta",
@@ -725,39 +1028,57 @@
     25.0,
     35.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Terra_Maledicta"
+   "source": "https://rogue-lineage.fandom.com/wiki/Terra_Maledicta",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "The Shadow",
    "cooldown": null,
    "verified": false,
    "source": "https://rogue-lineage.fandom.com/wiki/Whisperer",
-   "notes": "Wiki: M1 has no cooldown."
+   "notes": "Wiki: M1 has no cooldown.",
+   "classes": [
+    "Whisperer"
+   ]
   },
   {
    "name": "The Soul",
    "cooldown": 30,
    "verified": true,
    "source": "https://rogue-lineage.fandom.com/wiki/Whisperer",
-   "notes": "Wiki: \"around a 30 second cooldown\"."
+   "notes": "Wiki: \"around a 30 second cooldown\".",
+   "classes": [
+    "Whisperer"
+   ]
   },
   {
    "name": "Threading Needle",
    "cooldown": 30,
    "verified": true,
-   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer",
+   "classes": [
+    "Whisperer"
+   ]
   },
   {
    "name": "Thunder Charge",
    "cooldown": 5.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Sigil_Knight_Illusionist"
+   "source": "https://rogue-lineage.fandom.com/wiki/Sigil_Knight_Illusionist",
+   "classes": [
+    "Sigil Knight Illusionist"
+   ]
   },
   {
    "name": "Thunder Spear Crash",
    "cooldown": 13.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Slayer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Slayer",
+   "classes": [
+    "Dragon Slayer"
+   ]
   },
   {
    "name": "Trahere",
@@ -767,7 +1088,10 @@
     75.0,
     85.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Trahere"
+   "source": "https://rogue-lineage.fandom.com/wiki/Trahere",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Trickstus",
@@ -781,19 +1105,31 @@
     30.0,
     50.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Trickstus"
+   "source": "https://rogue-lineage.fandom.com/wiki/Trickstus",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Triple Dagger Throw",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Assassin_Dragon_Knight"
+   "source": "https://rogue-lineage.fandom.com/wiki/Assassin_Dragon_Knight",
+   "classes": [
+    "Assassin Dragon Knight",
+    "Assassin Necromancer"
+   ]
   },
   {
    "name": "Triple Slash",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Ashigaru"
+   "source": "https://rogue-lineage.fandom.com/wiki/Ashigaru",
+   "classes": [
+    "Ashigaru",
+    "Samurai Botanist",
+    "Samurai Monk"
+   ]
   },
   {
    "name": "Velo",
@@ -807,20 +1143,29 @@
     50.0,
     60.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Velo"
+   "source": "https://rogue-lineage.fandom.com/wiki/Velo",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Verdien",
    "cooldown": null,
    "verified": false,
    "source": "https://rogue-lineage.fandom.com/wiki/Verdien",
-   "notes": "Samurai Botanist's Verdien has a 25 s cooldown; the normal spell has none listed."
+   "notes": "Samurai Botanist's Verdien has a 25 s cooldown; the normal spell has none listed.",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Violent Slash",
    "cooldown": 30,
    "verified": true,
-   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Whisperer",
+   "classes": [
+    "Whisperer"
+   ]
   },
   {
    "name": "Viribus",
@@ -834,37 +1179,55 @@
     60.0,
     70.0
    ],
-   "source": "https://rogue-lineage.fandom.com/wiki/Viribus"
+   "source": "https://rogue-lineage.fandom.com/wiki/Viribus",
+   "classes": [
+    "Spells"
+   ]
   },
   {
    "name": "Void Slicer",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Abyss_Dancer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Abyss_Dancer",
+   "classes": [
+    "Abyss Dancer"
+   ]
   },
   {
    "name": "Void Spear",
    "cooldown": 10.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Abomination"
+   "source": "https://rogue-lineage.fandom.com/wiki/Abomination",
+   "classes": [
+    "Abomination"
+   ]
   },
   {
    "name": "Wing Soar",
    "cooldown": 15.0,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Slayer"
+   "source": "https://rogue-lineage.fandom.com/wiki/Dragon_Slayer",
+   "classes": [
+    "Dragon Slayer"
+   ]
   },
   {
    "name": "Withstand",
    "cooldown": 7.5,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Journeyman"
+   "source": "https://rogue-lineage.fandom.com/wiki/Journeyman",
+   "classes": [
+    "Journeyman"
+   ]
   },
   {
    "name": "Zidinys",
    "cooldown": null,
    "verified": false,
-   "source": "https://rogue-lineage.fandom.com/wiki/Zidinys"
+   "source": "https://rogue-lineage.fandom.com/wiki/Zidinys",
+   "classes": [
+    "Spells"
+   ]
   }
  ]
 }
