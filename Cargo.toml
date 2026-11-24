@@ -1,6 +1,6 @@
 [package]
 name = "rogue-overlay"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Overlay de maná, cooldowns y ore timer para Rogue Lineage (Roblox)"
 repository = "https://github.com/abrahampo1/rogue_overlay"
