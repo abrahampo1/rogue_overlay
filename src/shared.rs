@@ -7,6 +7,10 @@ use crate::config::Config;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cmd {
     OreSync,
+    /// Read the skill names on the hotbar now.
+    DetectSkills,
+    /// The catalog file changed (updated from GitHub): load it again.
+    ReloadCatalog,
     OreStop,
     ResetCooldowns,
     ToggleEdit,
@@ -28,6 +32,9 @@ pub struct Status {
     pub selected: Option<usize>,
     /// Slots in use (detected or fixed).
     pub slots: usize,
+    /// Text read from each slot by the last skill detection.
+    pub ocr_text: Vec<String>,
+    pub detecting: bool,
     /// Seconds left for each slot (0 = ready).
     pub cooldowns: Vec<f32>,
     pub ore_remaining: Option<f32>,

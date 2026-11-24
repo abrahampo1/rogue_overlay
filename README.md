@@ -52,6 +52,24 @@ For the % to work, the overlay hides itself from screen captures (Settings → "
 
 Screen reads cost a little game performance, so their rate is configurable: mana reads/s (default 20) in the Mana skins tab and hotbar reads/s (default 10) in the Skill cooldowns tab. Both are capped by the overlay FPS in Settings.
 
+## Skill auto-detection and the community catalog
+
+With "Auto-detect skills from the hotbar" on (Skill cooldowns tab), the overlay reads the names the game draws on each hotbar slot. It uses the OCR built into Windows 10/11, on a background thread, when the hotbar changes, every 8 s, or with "Detect now". Each name is matched (fuzzy, so OCR slips like `I gnis` still work) first against your own skill library, then against the community catalog, and the slot gets its name and cooldown. A skill whose cooldown is not known gets 0 s, which means it is not tracked. Slots you edit by hand are marked as yours and never overwritten.
+
+The catalog lives in [`catalog/skills.json`](catalog/skills.json). "Update from GitHub" in the panel downloads the latest version, so fixes reach everyone without a new release. Each entry looks like this:
+
+```json
+{ "name": "The Soul", "cooldown": 30, "verified": true, "source": "https://rogue-lineage.fandom.com/wiki/Whisperer" }
+```
+
+- `cooldown`: seconds, or `null` if unknown.
+- `verified`: `true` once a person has checked the value. The first values were extracted automatically from the [Rogue Lineage wiki](https://rogue-lineage.fandom.com/) and may be wrong; they are marked with `*` in the panel.
+- `aliases`: other spellings, for example how the hotbar wraps a long name.
+- `mana` / `snap_mana`: mana % range needed to cast a spell.
+- `notes`, `source`: free text and where the value comes from.
+
+To contribute, fix or add entries and open a pull request.
+
 ## Custom skins
 
 Use "Add image…" in the panel, or copy images into `skins\`. The image is stretched to the mana bar box and drawn **on top** of the game's bar. It needs transparency wherever the mana should show through: `ruler.png`, for example, is only a frame and marks. Animated gifs play.

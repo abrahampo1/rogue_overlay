@@ -122,6 +122,9 @@ pub struct Hotbar {
     pub slot_body_color: [u8; 3],
     /// Read which slot is selected from the screen (more reliable than following key presses).
     pub read_selection: bool,
+    /// Read the skill names on the hotbar (Windows OCR) and fill in name + cooldown from the
+    /// skill library and the community catalog.
+    pub auto_detect_skills: bool,
     /// Hotbar screen reads per second (selection and slot count). Higher = more responsive,
     /// but each read costs a little game performance.
     pub sample_hz: u32,
@@ -136,6 +139,9 @@ pub struct Skill {
     /// Cooldown in seconds. 0 = slot ignored.
     pub cooldown: f32,
     pub name: String,
+    /// Filled in automatically from the hotbar. Editing the slot by hand clears it, and auto
+    /// detection never overwrites a slot the user edited.
+    pub auto: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -221,9 +227,10 @@ impl Default for Hotbar {
             slot_body_color: [215, 203, 191],
             read_selection: true,
             sample_hz: 10,
+            auto_detect_skills: true,
             skills: keys
                 .iter()
-                .map(|k| Skill { key: (*k).into(), cooldown: 10.0, name: String::new() })
+                .map(|k| Skill { key: (*k).into(), ..Default::default() })
                 .collect(),
         }
     }
@@ -231,7 +238,7 @@ impl Default for Hotbar {
 
 impl Default for Skill {
     fn default() -> Self {
-        Self { key: String::new(), cooldown: 10.0, name: String::new() }
+        Self { key: String::new(), cooldown: 10.0, name: String::new(), auto: false }
     }
 }
 

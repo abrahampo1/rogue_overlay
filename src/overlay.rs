@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 use tiny_skia::{Color, Pixmap, Rect, Shader};
 use windows::Win32::Foundation::HWND;
 
+use crate::catalog::{self, Catalog};
 use crate::config::{self, resolve, Config};
 use crate::render::{self, fill_rect, rgba, stroke_rect, Skin, Text};
 use crate::shared::{Cmd, Handle, Status};
@@ -108,6 +109,13 @@ struct App {
     dirty_mana: bool,
     last_hotbar_sample: Instant,
     last_mana_sample: Instant,
+    catalog: Catalog,
+    /// Skill detection running on a worker thread: results arrive here.
+    ocr_rx: Option<std::sync::mpsc::Receiver<Vec<String>>>,
+    last_ocr: Instant,
+    ocr_slots: usize,
+    ocr_forced: bool,
+    ocr_text: Vec<String>,
 }
 
 thread_local! {
@@ -205,6 +213,12 @@ impl App {
             dirty_mana: false,
             last_hotbar_sample: Instant::now() - Duration::from_secs(10),
             last_mana_sample: Instant::now() - Duration::from_secs(10),
+            catalog: Catalog::load(),
+            ocr_rx: None,
+            last_ocr: Instant::now() - Duration::from_secs(60),
+            ocr_slots: 0,
+            ocr_forced: true,
+            ocr_text: Vec::new(),
         };
         app.apply_config();
         app
@@ -273,6 +287,8 @@ impl App {
             .iter()
             .map(|e| e.map(|t| t.saturating_duration_since(now).as_secs_f32()).unwrap_or(0.0))
             .collect();
+        st.ocr_text = self.ocr_text.clone();
+        st.detecting = self.ocr_rx.is_some();
         st.ore_remaining = self.ore_next.map(|t| t.saturating_duration_since(now).as_secs_f32());
         st.error = self.error.clone();
     }
@@ -290,6 +306,11 @@ impl App {
             Cmd::ToggleVisible => self.visible = !self.visible,
             Cmd::TestSound => win::play_sound(&self.cfg.ore.sound),
             Cmd::Quit => win::destroy(self.hwnd),
+            Cmd::DetectSkills => self.ocr_forced = true,
+            Cmd::ReloadCatalog => {
+                self.catalog = Catalog::load();
+                self.ocr_forced = true;
+            }
         }
         self.needs_redraw = true;
     }
@@ -448,8 +469,10 @@ impl App {
                         }
                     }
                 }
+                self.maybe_detect_skills(&band, rect, now);
             }
         }
+        self.collect_detected_skills();
 
         // The screen is only sampled when the numeric % is shown.
         if self.cfg.mana.enabled && self.cfg.mana.show_percent {
@@ -618,6 +641,110 @@ impl App {
             }
         }
         None
+    }
+
+    /// Starts reading the skill names on the hotbar (on a worker thread) when the slot count
+    /// changed, every 8 s, or when the panel asks. Only while the hotbar is visible.
+    fn maybe_detect_skills(&mut self, band: &[u8], game: win::GameRect, now: Instant) {
+        let n = self.active_slots();
+        let hb = &self.cfg.hotbar;
+        if !hb.auto_detect_skills || self.ocr_rx.is_some() || n == 0 {
+            return;
+        }
+        let due = self.ocr_forced || n != self.ocr_slots || now - self.last_ocr >= Duration::from_secs(8);
+        // Only when the hotbar is actually on screen (selection could be read).
+        if !due || self.read_selected(band, game).is_none() {
+            return;
+        }
+        self.ocr_forced = false;
+        self.last_ocr = now;
+        self.ocr_slots = n;
+        let size = hb.slot_size;
+        let w = game.w;
+        let crops: Vec<(Vec<u8>, u32, u32)> = (0..n)
+            .map(|i| {
+                // The slot body (inside the frame), scaled up 4x: OCR reads small text much better.
+                let (sx, _, _) = self.slot_rect(i, game.w, game.h);
+                let x0 = (sx as i32 + 3).clamp(0, w - 1);
+                let cw = (size - 6).min(w - x0).max(1);
+                let ch = size.max(1);
+                let mut img = image::RgbaImage::new(cw as u32, ch as u32);
+                for y in 0..ch {
+                    for x in 0..cw {
+                        let o = ((y * w + x0 + x) * 4) as usize;
+                        if let Some(p) = band.get(o..o + 4) {
+                            img.put_pixel(x as u32, y as u32, image::Rgba([p[0], p[1], p[2], 255]));
+                        }
+                    }
+                }
+                let big = image::imageops::resize(&img, cw as u32 * 4, ch as u32 * 4, image::imageops::FilterType::CatmullRom);
+                let (bw, bh) = big.dimensions();
+                (big.into_raw(), bw, bh)
+            })
+            .collect();
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.ocr_rx = Some(rx);
+        std::thread::spawn(move || {
+            win::winrt_init();
+            let texts = match win::ocr_engine() {
+                Ok(engine) => crops
+                    .iter()
+                    .map(|(px, bw, bh)| win::ocr_bgra(&engine, px, *bw as i32, *bh as i32).unwrap_or_default())
+                    .collect(),
+                Err(_) => vec![String::new(); crops.len()],
+            };
+            let _ = tx.send(texts);
+        });
+    }
+
+    /// Applies finished skill detection: names (and cooldowns, when known) for slots that are
+    /// empty or were filled automatically. Slots the user edited are left alone.
+    fn collect_detected_skills(&mut self) {
+        let Some(rx) = &self.ocr_rx else { return };
+        let texts = match rx.try_recv() {
+            Ok(t) => t,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(_) => {
+                self.ocr_rx = None;
+                return;
+            }
+        };
+        self.ocr_rx = None;
+        let mut changed = false;
+        for (i, text) in texts.iter().enumerate() {
+            let Some(slot) = self.cfg.hotbar.skills.get(i) else { break };
+            if !(slot.name.trim().is_empty() || slot.auto) {
+                continue;
+            }
+            // The user's own library first (their cooldowns win), then the community catalog.
+            let lib = catalog::best_match(
+                self.cfg.skill_library.iter().map(|p| (p, std::iter::once(&p.name))),
+                text,
+            );
+            let (name, cooldown) = match (lib, self.catalog.best_match(text)) {
+                (Some(p), _) => (p.name.clone(), Some(p.cooldown)),
+                // Unknown cooldown: 0 = not tracked, rather than showing a made-up timer.
+                (None, Some(c)) => (c.name.clone(), Some(c.cooldown.unwrap_or(0.0))),
+                (None, None) => continue,
+            };
+            let slot = &mut self.cfg.hotbar.skills[i];
+            if slot.name != name || cooldown.is_some_and(|c| c != slot.cooldown) || !slot.auto {
+                slot.name = name;
+                if let Some(c) = cooldown {
+                    slot.cooldown = c;
+                }
+                slot.auto = true;
+                changed = true;
+            }
+        }
+        self.ocr_text = texts;
+        if changed {
+            self.publish_cfg();
+            // Saved here too: the panel only autosaves while it is running its UI loop, which
+            // does not happen while it is minimised.
+            let _ = config::save(&self.cfg);
+            self.needs_redraw = true;
+        }
     }
 
     /// Counts the hotbar slots on screen. The game centres the hotbar and adds slots as you learn

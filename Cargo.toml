@@ -25,6 +25,14 @@ features = [
     "Win32_System_LibraryLoader",
     "Win32_Media_Audio",
     "Win32_System_Threading",
+    "Win32_System_WinRT",
+    "Foundation",
+    "Foundation_Collections",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Security_Cryptography",
+    "Storage_Streams",
+    "Web_Http",
 ]
 
 [profile.release]

@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, RichText, Sense, Stroke, StrokeKind, TextureHandle, Vec2};
 
+use crate::catalog::Catalog;
 use crate::config::{self, Config, Skill, SkillPreset};
 use crate::shared::{Cmd, Handle, Status};
 use crate::skins::{self, BUILTINS};
@@ -28,6 +29,9 @@ pub struct Panel {
     images: Vec<String>,
     thumbs: HashMap<String, Option<TextureHandle>>,
     message: Option<(String, Instant)>,
+    catalog: Catalog,
+    /// "Update catalog" download running on a worker thread.
+    catalog_job: Option<std::sync::mpsc::Receiver<Result<Catalog, String>>>,
 }
 
 impl Panel {
@@ -44,6 +48,8 @@ impl Panel {
             tab: Tab::Mana,
             dirty_since: None,
             images: skins::list_images(),
+            catalog: Catalog::load(),
+            catalog_job: None,
             thumbs: HashMap::new(),
             message: None,
         }
@@ -315,6 +321,20 @@ impl Panel {
     }
 
     fn tab_cooldowns(&mut self, ui: &mut egui::Ui) {
+        // Finished catalog download?
+        if let Some(rx) = &self.catalog_job {
+            if let Ok(res) = rx.try_recv() {
+                self.catalog_job = None;
+                match res {
+                    Ok(c) => {
+                        self.info(format!("Catalog updated: {} skills ({} cooldowns)", c.skills.len(), c.known_cooldowns()));
+                        self.catalog = c;
+                        self.send(Cmd::ReloadCatalog);
+                    }
+                    Err(e) => self.info(e),
+                }
+            }
+        }
         ui.horizontal(|ui| {
             ui.checkbox(&mut self.cfg.hotbar.enabled, "Show cooldowns");
             ui.label("Opacity");
@@ -352,8 +372,34 @@ impl Panel {
         });
         ui.add_space(6.0);
 
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut self.cfg.hotbar.auto_detect_skills, "Auto-detect skills from the hotbar")
+                .on_hover_text("Reads the skill names on the hotbar (Windows OCR) and fills in name and cooldown from your library and the community catalog. Slots you edit by hand are never overwritten.");
+            let detecting = self.status.detecting;
+            if ui.add_enabled(!detecting, egui::Button::new(if detecting { "Detecting…" } else { "Detect now" })).clicked() {
+                self.send(Cmd::DetectSkills);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(format!(
+                "Community catalog: {} skills, {} with cooldown (* = not verified yet)",
+                self.catalog.skills.len(),
+                self.catalog.known_cooldowns()
+            )).color(Color32::GRAY));
+            let busy = self.catalog_job.is_some();
+            if ui.add_enabled(!busy, egui::Button::new(if busy { "Updating…" } else { "Update from GitHub" })).clicked() {
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.catalog_job = Some(rx);
+                std::thread::spawn(move || {
+                    let _ = tx.send(Catalog::update_from_github());
+                });
+            }
+            ui.hyperlink_to("Contribute", "https://github.com/abrahampo1/rogue_overlay/blob/main/catalog/skills.json");
+        });
+        ui.add_space(4.0);
         let status = self.status.clone();
         let library = self.cfg.skill_library.clone();
+        let catalog = self.catalog.clone();
         let mut save_preset: Option<SkillPreset> = None;
         let mut remove: Option<usize> = None;
         egui::Grid::new("slots").num_columns(6).striped(true).spacing([10.0, 6.0]).show(ui, |ui| {
@@ -366,19 +412,48 @@ impl Panel {
             ui.end_row();
             for (i, s) in self.cfg.hotbar.skills.iter_mut().enumerate() {
                 ui.add(egui::TextEdit::singleline(&mut s.key).desired_width(40.0));
-                ui.add(egui::TextEdit::singleline(&mut s.name).hint_text(format!("Slot {}", i + 1)).desired_width(150.0));
-                ui.add(egui::DragValue::new(&mut s.cooldown).range(0.0..=600.0).speed(0.1).suffix(" s"));
+                ui.horizontal(|ui| {
+                    let mut name = ui.add(egui::TextEdit::singleline(&mut s.name).hint_text(format!("Slot {}", i + 1)).desired_width(150.0));
+                    if s.auto {
+                        let read = status.ocr_text.get(i).cloned().unwrap_or_default();
+                        ui.label(RichText::new("auto").small().color(Color32::LIGHT_BLUE))
+                            .on_hover_text(format!("Detected from the hotbar (read: \"{read}\"). Edit the slot to stop auto updates."));
+                    }
+                    if let Some(c) = catalog.best_match(&s.name).filter(|c| crate::catalog::normalize(&c.name) == crate::catalog::normalize(&s.name)) {
+                        name = name.on_hover_text(catalog_tooltip(c));
+                    }
+                    if name.changed() {
+                        s.auto = false;
+                    }
+                });
+                if ui.add(egui::DragValue::new(&mut s.cooldown).range(0.0..=600.0).speed(0.1).suffix(" s")).changed() {
+                    s.auto = false;
+                }
                 egui::ComboBox::from_id_salt(("lib", i))
                     .selected_text("Pick…")
-                    .width(130.0)
+                    .width(150.0)
+                    .height(400.0)
                     .show_ui(ui, |ui| {
-                        if library.is_empty() {
-                            ui.label("(empty)");
+                        if !library.is_empty() {
+                            ui.label(RichText::new("My library").strong());
                         }
                         for p in &library {
                             if ui.selectable_label(false, format!("{} · {} s", p.name, p.cooldown)).clicked() {
                                 s.name = p.name.clone();
                                 s.cooldown = p.cooldown;
+                                s.auto = false;
+                            }
+                        }
+                        ui.label(RichText::new("Community catalog").strong());
+                        for c in &catalog.skills {
+                            let cd = c.cooldown.map(|v| format!("{v} s")).unwrap_or_else(|| "? s".into());
+                            let mark = if c.cooldown.is_some() && !c.verified { " *" } else { "" };
+                            if ui.selectable_label(false, format!("{} · {cd}{mark}", c.name)).on_hover_text(catalog_tooltip(c)).clicked() {
+                                s.name = c.name.clone();
+                                if let Some(v) = c.cooldown {
+                                    s.cooldown = v;
+                                }
+                                s.auto = false;
                             }
                         }
                     });
@@ -653,4 +728,24 @@ fn paint_builtin(p: &egui::Painter, r: egui::Rect, b: &skins::Builtin) {
             p.rect_filled(cap, 3.0, frame);
         }
     }
+}
+
+fn catalog_tooltip(c: &crate::catalog::CatalogSkill) -> String {
+    let mut t = match c.cooldown {
+        Some(v) => format!("{}: {v} s cooldown{}", c.name, if c.verified { "" } else { " (not verified)" }),
+        None => format!("{}: cooldown unknown - help by adding it to the catalog", c.name),
+    };
+    if let Some([a, b]) = c.mana {
+        t += &format!("\nMana to cast: {a}-{b}%");
+    }
+    if let Some([a, b]) = c.snap_mana {
+        t += &format!("\nSnap: {a}-{b}%");
+    }
+    if let Some(n) = &c.notes {
+        t += &format!("\n{n}");
+    }
+    if let Some(src) = &c.source {
+        t += &format!("\nSource: {src}");
+    }
+    t
 }

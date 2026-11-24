@@ -563,3 +563,43 @@ pub fn capture(x: i32, y: i32, w: i32, h: i32) -> Option<Vec<u8>> {
         }
     })
 }
+
+// ---------------------------------------------------------------- WinRT: OCR and HTTP
+
+/// Initialises WinRT on the calling (worker) thread. Safe to call more than once.
+pub fn winrt_init() {
+    unsafe {
+        let _ = windows::Win32::System::WinRT::RoInitialize(windows::Win32::System::WinRT::RO_INIT_MULTITHREADED);
+    }
+}
+
+/// Reads the text in a BGRA image with the OCR engine built into Windows (Windows 10+), using
+/// the user's language. Returns the recognised lines joined with spaces.
+pub fn ocr_bgra(engine: &windows::Media::Ocr::OcrEngine, bgra: &[u8], w: i32, h: i32) -> windows::core::Result<String> {
+    use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
+    use windows::Security::Cryptography::CryptographicBuffer;
+    let buf = CryptographicBuffer::CreateFromByteArray(bgra)?;
+    let bmp = SoftwareBitmap::CreateCopyFromBuffer(&buf, BitmapPixelFormat::Bgra8, w, h)?;
+    let result = engine.RecognizeAsync(&bmp)?.get()?;
+    let mut out = Vec::new();
+    for line in result.Lines()? {
+        out.push(line.Text()?.to_string_lossy());
+    }
+    Ok(out.join(" "))
+}
+
+pub fn ocr_engine() -> windows::core::Result<windows::Media::Ocr::OcrEngine> {
+    windows::Media::Ocr::OcrEngine::TryCreateFromUserProfileLanguages()
+}
+
+/// Simple HTTPS GET with the WinRT HTTP client (no extra dependencies). Blocking: call it from a
+/// worker thread.
+pub fn http_get(url: &str) -> Result<String, String> {
+    let run = || -> windows::core::Result<String> {
+        winrt_init();
+        let client = windows::Web::Http::HttpClient::new()?;
+        let uri = windows::Foundation::Uri::CreateUri(&windows::core::HSTRING::from(url))?;
+        Ok(client.GetStringAsync(&uri)?.get()?.to_string_lossy())
+    };
+    run().map_err(|e| format!("Download failed: {e}"))
+}
