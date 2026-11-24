@@ -61,6 +61,43 @@ enum Target {
     Ore,
 }
 
+/// Which edges of the mana bar a resize handle moves.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Edges {
+    left: bool,
+    right: bool,
+    top: bool,
+    bottom: bool,
+}
+
+impl Edges {
+    fn cursor(self) -> win::CursorKind {
+        let (h, v) = (self.left || self.right, self.top || self.bottom);
+        match (h, v) {
+            (true, true) if (self.left && self.top) || (self.right && self.bottom) => win::CursorKind::ResizeDiagDown,
+            (true, true) => win::CursorKind::ResizeDiagUp,
+            (true, false) => win::CursorKind::ResizeH,
+            (false, true) => win::CursorKind::ResizeV,
+            _ => win::CursorKind::Move,
+        }
+    }
+}
+
+/// Distance in px from an edge of the mana bar that grabs its resize handle.
+const HANDLE_GRAB: i32 = 7;
+
+/// Moves a coordinate keeping its anchor: a negative value (measured from the right/bottom)
+/// stays negative.
+fn shift_anchor(v: &mut i32, d: i32) {
+    let neg = *v < 0;
+    *v += d;
+    if neg && *v >= 0 {
+        *v = -1;
+    } else if !neg && *v < 0 {
+        *v = 0;
+    }
+}
+
 enum ManaSkin {
     Builtin(&'static Builtin),
     Image(Skin),
@@ -81,6 +118,8 @@ struct App {
     editing: bool,
     focus: Target,
     drag: Option<(i32, i32)>,
+    /// Edges being dragged when resizing the mana bar with its handles (None = moving).
+    resize: Option<Edges>,
     shown: bool,
     /// Keys currently down and when their last KeyDown arrived (to tell auto-repeat apart).
     held: HashMap<u32, Instant>,
@@ -207,6 +246,7 @@ impl App {
             editing: false,
             focus: Target::Mana,
             drag: None,
+            resize: None,
             shown: false,
             held: HashMap::new(),
             done_btn: None,
@@ -978,16 +1018,7 @@ impl App {
     }
 
     fn move_target(&mut self, t: Target, dx: i32, dy: i32) {
-        // Keeps the anchor: a negative value (from right/bottom) stays negative.
-        fn shift(v: &mut i32, d: i32) {
-            let neg = *v < 0;
-            *v += d;
-            if neg && *v >= 0 {
-                *v = -1;
-            } else if !neg && *v < 0 {
-                *v = 0;
-            }
-        }
+        let shift = shift_anchor;
         let c = &mut self.cfg;
         match t {
             Target::Mana => {
@@ -1025,6 +1056,52 @@ impl App {
             (Target::Hotbar, false) => grow(&mut c.hotbar.slot_step, n),
             (Target::Hotbar, true) => grow(&mut c.hotbar.slot_size, n),
             (Target::Ore, _) => c.ore.text_size = (c.ore.text_size + n as f32).clamp(8.0, 96.0),
+        }
+        self.needs_redraw = true;
+        self.publish_cfg();
+    }
+
+    /// Resize handle of the mana bar under (x, y): near an edge or corner of its box.
+    fn mana_handle_at(&self, x: i32, y: i32) -> Option<Edges> {
+        if !self.cfg.mana.enabled {
+            return None;
+        }
+        let (w, h) = self.last_rect.map(|r| (r.w, r.h))?;
+        let (rx, ry, rw, rh) = self.target_rect(Target::Mana, w, h);
+        let g = HANDLE_GRAB;
+        let in_x = x >= rx - g && x <= rx + rw + g;
+        let in_y = y >= ry - g && y <= ry + rh + g;
+        if !(in_x && in_y) {
+            return None;
+        }
+        let e = Edges {
+            left: (x - rx).abs() <= g,
+            right: (x - (rx + rw)).abs() <= g,
+            top: (y - ry).abs() <= g,
+            bottom: (y - (ry + rh)).abs() <= g,
+        };
+        (e.left || e.right || e.top || e.bottom).then_some(e)
+    }
+
+    /// Resizes the mana bar (the skin box, not the sample strip) by dragging some of its edges.
+    fn resize_mana(&mut self, e: Edges, dx: i32, dy: i32) {
+        const MIN: i32 = 6;
+        let m = &mut self.cfg.mana;
+        if e.right {
+            m.w = (m.w + dx).max(MIN);
+        }
+        if e.left {
+            let nw = (m.w - dx).max(MIN);
+            shift_anchor(&mut m.x, m.w - nw);
+            m.w = nw;
+        }
+        if e.bottom {
+            m.h = (m.h + dy).max(MIN);
+        }
+        if e.top {
+            let nh = (m.h - dy).max(MIN);
+            shift_anchor(&mut m.y, m.h - nh);
+            m.h = nh;
         }
         self.needs_redraw = true;
         self.publish_cfg();
@@ -1072,8 +1149,13 @@ impl App {
                     self.set_editing(false);
                     return;
                 }
-                if let Some(t) = self.hit(x, y) {
+                if let Some(e) = self.mana_handle_at(x, y) {
+                    self.focus = Target::Mana;
+                    self.resize = Some(e);
+                    self.drag = Some((x, y));
+                } else if let Some(t) = self.hit(x, y) {
                     self.focus = t;
+                    self.resize = None;
                     self.drag = Some((x, y));
                 }
                 self.needs_redraw = true;
@@ -1081,12 +1163,21 @@ impl App {
             win::Msg::MouseMove { x, y } => {
                 if let Some((lx, ly)) = self.drag {
                     if (x, y) != (lx, ly) {
-                        self.move_target(self.focus, x - lx, y - ly);
+                        match self.resize {
+                            Some(e) => self.resize_mana(e, x - lx, y - ly),
+                            None => self.move_target(self.focus, x - lx, y - ly),
+                        }
                         self.drag = Some((x, y));
                     }
+                } else if self.editing {
+                    let kind = self.mana_handle_at(x, y).map(Edges::cursor).unwrap_or(win::CursorKind::Move);
+                    win::set_cursor(kind);
                 }
             }
-            win::Msg::MouseUp => self.drag = None,
+            win::Msg::MouseUp => {
+                self.drag = None;
+                self.resize = None;
+            }
             win::Msg::Wheel { x, y, delta, ctrl } if self.editing => {
                 let t = self.hit(x, y).unwrap_or(self.focus);
                 self.focus = t;
@@ -1270,6 +1361,24 @@ impl App {
             let (x, y, rw, rh) = self.target_rect(self.focus, w, h);
             fill_rect(pm, x as f32, y as f32, rw as f32, rh as f32, Color::from_rgba8(255, 255, 255, 40));
             stroke_rect(pm, x as f32 - 3.0, y as f32 - 3.0, rw as f32 + 6.0, rh as f32 + 6.0, 2.0, Color::WHITE);
+            // Resize handles of the mana bar: corners and edge midpoints.
+            if self.cfg.mana.enabled {
+                let (mx, my, mw, mh) = self.target_rect(Target::Mana, w, h);
+                let (mx, my, mw, mh) = (mx as f32, my as f32, mw as f32, mh as f32);
+                for (hx, hy) in [
+                    (mx, my),
+                    (mx + mw / 2.0, my),
+                    (mx + mw, my),
+                    (mx, my + mh / 2.0),
+                    (mx + mw, my + mh / 2.0),
+                    (mx, my + mh),
+                    (mx + mw / 2.0, my + mh),
+                    (mx + mw, my + mh),
+                ] {
+                    fill_rect(pm, hx - 4.5, hy - 4.5, 9.0, 9.0, Color::from_rgba8(20, 20, 20, 230));
+                    fill_rect(pm, hx - 3.5, hy - 3.5, 7.0, 7.0, Color::WHITE);
+                }
+            }
         }
 
         for i in 0..self.active_slots() {
@@ -1308,7 +1417,8 @@ impl App {
         ];
         if self.editing {
             lines.extend([
-                "Drag to move · Wheel / PageUp-PageDown: height · slot spacing · text size".to_string(),
+                "Drag to move · Mana bar: drag the white handles to resize it".to_string(),
+                "Wheel / PageUp-PageDown: height · slot spacing · text size".into(),
                 "Ctrl + wheel: width · slot size · Arrows: 1 px (Shift 10)".into(),
                 "C: pick the EMPTY bar colour under the cursor (for the numeric %)".into(),
                 format!("Selected: {:?} {:?}", self.focus, self.target_rect(self.focus, w, h)),

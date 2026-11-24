@@ -22,6 +22,7 @@ The executable ends up in `target\release\rogue-overlay.exe`. `config.json` and 
 1. Open Roblox first (window titled `Roblox`, ideally fullscreen), then `rogue-overlay.exe`.
 2. If something does not line up with your resolution or UI, press **F6** (or "Place in game" in the panel):
    - drag the mana bar (magenta), the sample strip (yellow), the hotbar (cyan) or the ore timer (green);
+   - resize the mana bar image with the white handles on its corners and edges (the sample strip is not affected);
    - wheel or PageUp/PageDown changes the height, slot spacing or text size; with **Ctrl** it changes the width or slot size;
    - arrows move the selected element 1 px (10 px with Shift);
    - **C** with the cursor over the EMPTY part of the in-game bar picks that colour for the numeric %;

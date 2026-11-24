@@ -29,6 +29,21 @@ static EVENTS: Mutex<Vec<Input>> = Mutex::new(Vec::new());
 static GAME_TITLE: Mutex<Vec<u16>> = Mutex::new(Vec::new());
 static EDITING: AtomicBool = AtomicBool::new(false);
 static HOOK_THREAD: AtomicU32 = AtomicU32::new(0);
+/// Cursor shown over the overlay in edit mode (see `set_cursor`).
+static CURSOR: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CursorKind {
+    Move,
+    ResizeH,
+    ResizeV,
+    ResizeDiagDown,
+    ResizeDiagUp,
+}
+
+pub fn set_cursor(kind: CursorKind) {
+    CURSOR.store(kind as u8, Ordering::Relaxed);
+}
 /// Signalled by the hook thread once its hooks are uninstalled.
 static HOOKS_DONE: Mutex<Option<std::sync::mpsc::Receiver<()>>> = Mutex::new(None);
 
@@ -277,7 +292,14 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
         }
         WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
         WM_SETCURSOR => {
-            if let Ok(c) = LoadCursorW(None, IDC_SIZEALL) {
+            let id = match CURSOR.load(Ordering::Relaxed) {
+                1 => IDC_SIZEWE,
+                2 => IDC_SIZENS,
+                3 => IDC_SIZENWSE,
+                4 => IDC_SIZENESW,
+                _ => IDC_SIZEALL,
+            };
+            if let Ok(c) = LoadCursorW(None, id) {
                 SetCursor(c);
             }
             LRESULT(1)
