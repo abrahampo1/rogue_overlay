@@ -118,6 +118,20 @@ struct App {
     ocr_text: Vec<String>,
     ocr_guess: Vec<Option<(String, f32)>>,
     detect_info: String,
+    /// Text "fingerprint" of each slot at the last OCR, and since when the hotbar has looked
+    /// different from it (to re-read once a change settles).
+    ocr_sigs: Vec<Option<SlotSig>>,
+    sig_changed_since: Option<Instant>,
+}
+
+/// Coarse map of the dark (text) pixels in a slot: 6x6 cells, ink pixels per cell. Ignores the
+/// background, so the selected slot lighting up does not count as a change.
+type SlotSig = [u16; 36];
+
+fn sig_differs(a: &SlotSig, b: &SlotSig) -> bool {
+    let diff: u32 = a.iter().zip(b).map(|(x, y)| (*x as i32 - *y as i32).unsigned_abs()).sum();
+    let ink: u32 = a.iter().chain(b).map(|v| *v as u32).sum::<u32>() / 2;
+    diff > 12 + ink / 6
 }
 
 thread_local! {
@@ -223,6 +237,8 @@ impl App {
             ocr_text: Vec::new(),
             ocr_guess: Vec::new(),
             detect_info: String::new(),
+            ocr_sigs: Vec::new(),
+            sig_changed_since: None,
         };
         app.apply_config();
         app
@@ -431,6 +447,11 @@ impl App {
 
     fn render(&mut self, now: Instant) {
         let game = win::find_game(&self.cfg.window_title);
+        // The hotbar is read even while the overlay is hidden (e.g. the panel is in front after
+        // pressing "Detect now"), as long as the game window is open and not minimised.
+        if let Some(rect) = game {
+            self.sample_hotbar(rect, now);
+        }
         let want = game.is_some()
             && (self.editing
                 || (self.visible && (!self.cfg.only_when_focused || self.calibrate || win::game_focused())));
@@ -446,41 +467,6 @@ impl App {
         }
         let rect = game.unwrap();
 
-        // Screen reads are expensive (each one makes Windows copy the frame back from the GPU), so
-        // the hotbar is read with ONE capture of its band, and both rates are configurable.
-        let hb = &self.cfg.hotbar;
-        let auto_count = hb.slot_count == 0;
-        if hb.enabled && !self.editing && (auto_count || hb.read_selection) && now - self.last_hotbar_sample >= hz_interval(hb.sample_hz) {
-            self.last_hotbar_sample = now;
-            let top = resolve(hb.y, rect.h);
-            let band_h = hb.slot_size.max(1);
-            if let Some(band) = win::capture(rect.x, rect.y + top, rect.w, band_h) {
-                if auto_count && now - self.last_slot_scan >= Duration::from_millis(500) {
-                    self.last_slot_scan = now;
-                    if let Some(n) = self.scan_slots(&band, rect) {
-                        if n != self.detected_slots {
-                            self.detected_slots = n;
-                            if self.selected.is_some_and(|s| s >= n) {
-                                self.selected = None;
-                            }
-                            self.needs_redraw = true;
-                        }
-                    }
-                }
-                if self.cfg.hotbar.read_selection {
-                    if let Some(sel) = self.read_selected(&band, rect) {
-                        if sel != self.selected {
-                            self.selected = sel;
-                            self.dirty_hotbar = true;
-                            // The cast window on the mana bar follows the selected spell.
-                            self.dirty_mana = true;
-                        }
-                    }
-                }
-                self.maybe_detect_skills(&band, rect, now);
-            }
-        }
-        self.collect_detected_skills();
 
         // The screen is only sampled when the numeric % is shown.
         if self.cfg.mana.enabled && self.cfg.mana.show_percent {
@@ -554,6 +540,45 @@ impl App {
             win::bring_to_top(self.hwnd);
             self.last_topmost = now;
         }
+    }
+
+    /// Reads the hotbar band: slot count, selected slot and skill detection.
+    fn sample_hotbar(&mut self, rect: win::GameRect, now: Instant) {
+        // Screen reads are expensive (each one makes Windows copy the frame back from the GPU), so
+        // the hotbar is read with ONE capture of its band, and both rates are configurable.
+        let hb = &self.cfg.hotbar;
+        let auto_count = hb.slot_count == 0;
+        if hb.enabled && !self.editing && (auto_count || hb.read_selection || hb.auto_detect_skills) && now - self.last_hotbar_sample >= hz_interval(hb.sample_hz) {
+            self.last_hotbar_sample = now;
+            let top = resolve(hb.y, rect.h);
+            let band_h = hb.slot_size.max(1);
+            if let Some(band) = win::capture(rect.x, rect.y + top, rect.w, band_h) {
+                if auto_count && now - self.last_slot_scan >= Duration::from_millis(500) {
+                    self.last_slot_scan = now;
+                    if let Some(n) = self.scan_slots(&band, rect) {
+                        if n != self.detected_slots {
+                            self.detected_slots = n;
+                            if self.selected.is_some_and(|s| s >= n) {
+                                self.selected = None;
+                            }
+                            self.needs_redraw = true;
+                        }
+                    }
+                }
+                if self.cfg.hotbar.read_selection {
+                    if let Some(sel) = self.read_selected(&band, rect) {
+                        if sel != self.selected {
+                            self.selected = sel;
+                            self.dirty_hotbar = true;
+                            // The cast window on the mana bar follows the selected spell.
+                            self.dirty_mana = true;
+                        }
+                    }
+                }
+                self.maybe_detect_skills(&band, rect, now);
+            }
+        }
+        self.collect_detected_skills();
     }
 
     /// Mana level (0..1): consecutive rows from the bottom of the sample strip that are not the
@@ -660,10 +685,32 @@ impl App {
         if !hb.auto_detect_skills || self.ocr_rx.is_some() || n == 0 {
             return;
         }
-        let due = self.ocr_forced || n != self.ocr_slots || now - self.last_ocr >= Duration::from_secs(8);
+        // Re-read as soon as a slot's text changes (skills moved in game) and the change has
+        // settled for a moment (not mid-drag). A slow periodic re-read is the safety net.
+        let sigs = self.slot_sigs(band, game, n);
+        let changed = sigs.len() != self.ocr_sigs.len()
+            || sigs.iter().zip(&self.ocr_sigs).any(|(a, b)| match (a, b) {
+                (Some(a), Some(b)) => sig_differs(a, b),
+                (Some(_), None) => true,
+                _ => false,
+            });
+        let settled = match (changed, self.sig_changed_since) {
+            (false, _) => {
+                self.sig_changed_since = None;
+                false
+            }
+            (true, None) => {
+                self.sig_changed_since = Some(now);
+                false
+            }
+            (true, Some(t)) => now - t >= Duration::from_millis(400),
+        };
+        let due = self.ocr_forced || n != self.ocr_slots || settled || now - self.last_ocr >= Duration::from_secs(5);
         if !due {
             return;
         }
+        self.sig_changed_since = None;
+        self.ocr_sigs = sigs;
         self.ocr_forced = false;
         self.last_ocr = now;
         self.ocr_slots = n;
@@ -719,6 +766,38 @@ impl App {
             };
             let _ = tx.send(texts);
         });
+    }
+
+    /// Text fingerprint of each slot (None if it does not look like a slot: hidden, covered or
+    /// darkened).
+    fn slot_sigs(&self, band: &[u8], game: win::GameRect, n: usize) -> Vec<Option<SlotSig>> {
+        let size = self.cfg.hotbar.slot_size;
+        let w = game.w;
+        (0..n)
+            .map(|i| {
+                let (sx, _, _) = self.slot_rect(i, game.w, game.h);
+                let x0 = (sx as i32 + 3).clamp(0, w - 1);
+                let cw = (size - 6).min(w - x0).max(6);
+                let ch = size.max(6);
+                let mut sig = [0u16; 36];
+                let mut body = 0;
+                for y in 0..ch {
+                    for x in 0..cw {
+                        let o = ((y * w + x0 + x) * 4) as usize;
+                        let Some(p) = band.get(o..o + 4) else { continue };
+                        if self.body_class(p) != 0 {
+                            body += 1;
+                        }
+                        let lum = (p[2] as u32 * 3 + p[1] as u32 * 6 + p[0] as u32) / 10;
+                        if lum < 110 {
+                            let cell = (y * 6 / ch) as usize * 6 + (x * 6 / cw) as usize;
+                            sig[cell] = sig[cell].saturating_add(1);
+                        }
+                    }
+                }
+                (body * 100 >= cw * ch * 25).then_some(sig)
+            })
+            .collect()
     }
 
     /// Applies finished skill detection: names (and cooldowns, when known) for slots that are
