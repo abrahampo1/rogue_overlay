@@ -159,6 +159,8 @@ pub struct Mana {
     pub opacity: f32,
     /// Show the numeric % above the bar (reads the mana from the screen).
     pub show_percent: bool,
+    /// Mark on the bar the mana range needed to cast the selected spell (from the catalog).
+    pub show_cast_window: bool,
     /// Mana screen reads per second for the numeric %. Higher = smoother, slightly more cost.
     pub sample_hz: u32,
     pub detect: ManaDetect,
@@ -254,6 +256,7 @@ impl Default for Mana {
             opacity: 1.0,
             show_percent: false,
             sample_hz: 20,
+            show_cast_window: true,
             detect: ManaDetect::default(),
         }
     }

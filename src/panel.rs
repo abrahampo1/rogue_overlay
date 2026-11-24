@@ -210,6 +210,8 @@ impl Panel {
             ui.checkbox(&mut self.cfg.mana.enabled, "Show skin over the mana bar");
             ui.checkbox(&mut self.cfg.mana.show_percent, "Show numeric %")
                 .on_hover_text("Reads the mana from the screen and writes the percentage above the bar.");
+            ui.checkbox(&mut self.cfg.mana.show_cast_window, "Mark the selected spell's mana window")
+                .on_hover_text("When the selected hotbar slot is a spell with a known mana range in the catalog, marks on the bar the range to cast it (green) and to snap it (blue).");
             if self.cfg.mana.show_percent {
                 ui.label("Reads/s");
                 ui.add(egui::Slider::new(&mut self.cfg.mana.sample_hz, 1..=60))

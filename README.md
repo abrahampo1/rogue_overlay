@@ -70,6 +70,10 @@ The catalog lives in [`catalog/skills.json`](catalog/skills.json). "Update from 
 
 To contribute, fix or add entries and open a pull request.
 
+### Spell cast window
+
+When the selected hotbar slot is a spell with a known mana range, the overlay marks it on the mana bar. The normal cast range is a green band on the left half and the snap range a blue band on the right half, with labels next to the bar. With the numeric % on, the band your mana is currently in lights up. Toggle it with "Mark the selected spell's mana window" in the Mana skins tab.
+
 ## Custom skins
 
 Use "Add image…" in the panel, or copy images into `skins\`. The image is stretched to the mana bar box and drawn **on top** of the game's bar. It needs transparency wherever the mana should show through: `ruler.png`, for example, is only a frame and marks. Animated gifs play.

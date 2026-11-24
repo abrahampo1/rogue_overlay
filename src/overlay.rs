@@ -466,6 +466,8 @@ impl App {
                         if sel != self.selected {
                             self.selected = sel;
                             self.dirty_hotbar = true;
+                            // The cast window on the mana bar follows the selected spell.
+                            self.dirty_mana = true;
                         }
                     }
                 }
@@ -509,7 +511,8 @@ impl App {
             }
             if skin_anim || self.dirty_mana {
                 let (x, y, w, h) = pad(self.target_rect(Target::Mana, rect.w, rect.h), 12);
-                parts.push((x - 20, y - 30, w + 40, h + 30));
+                // Wide enough for the cast window labels on the right of the bar.
+                parts.push((x - 20, y - 30, w + 200, h + 30));
             }
             parts.into_iter().reduce(|a, b| {
                 let x0 = a.0.min(b.0);
@@ -1070,10 +1073,73 @@ impl App {
             ManaSkin::Builtin(b) => draw_builtin_frame(pm, b, bx, by, bw, bh, m.opacity),
         }
 
+        if m.show_cast_window {
+            self.draw_cast_window(pm, h, bx, bw);
+        }
+
         if m.show_percent {
             if let (Some(l), Some(t)) = (self.mana, self.text.as_mut()) {
                 let label = format!("{}%", (l * 100.0).round() as i32);
                 t.draw_centered(pm, &label, 18.0, bx + bw / 2.0, by - 13.0, [255, 255, 255], 1.0);
+            }
+        }
+    }
+
+    /// Catalog entry of the selected slot's skill, if it is a spell with a known mana range.
+    fn selected_spell(&self) -> Option<&catalog::CatalogSkill> {
+        let name = &self.cfg.hotbar.skills.get(self.selected?)?.name;
+        let n = catalog::normalize(name);
+        if n.is_empty() {
+            return None;
+        }
+        self.catalog
+            .skills
+            .iter()
+            .find(|c| catalog::normalize(&c.name) == n)
+            .filter(|c| c.mana.is_some() || c.snap_mana.is_some())
+    }
+
+    /// Marks the mana needed to cast the selected spell: normal range (green) on the left half
+    /// of the bar, snap range (blue) on the right half, with labels next to the bar. The scale is
+    /// the sample strip, which spans the inside of the game's bar (bottom 0 %, top 100 %).
+    fn draw_cast_window(&mut self, pm: &mut Pixmap, h: i32, bx: f32, bw: f32) {
+        let Some(spell) = self.selected_spell().cloned() else { return };
+        let d = &self.cfg.mana.detect;
+        let (ty, th) = (resolve(d.y, h) as f32, d.h.max(1) as f32);
+        let mana = self.mana;
+        let y_of = |pct: f32| ty + th * (1.0 - pct.clamp(0.0, 100.0) / 100.0);
+        let inset = 4.0;
+        let half = (bw - 2.0 * inset) / 2.0;
+        let bands = [
+            (spell.mana, bx + inset, [80, 230, 120], "Cast"),
+            (spell.snap_mana, bx + inset + half, [90, 170, 255], "Snap"),
+        ];
+        let mut label_y: Vec<f32> = Vec::new();
+        for (range, x, color, label) in bands {
+            let Some([lo, hi]) = range else { continue };
+            let (top, bottom) = (y_of(hi), y_of(lo));
+            let inside = mana.is_some_and(|l| (lo..=hi).contains(&(l * 100.0)));
+            let alpha = if inside { 0.55 } else { 0.3 };
+            fill_rect(pm, x, top, half, (bottom - top).max(2.0), rgba(color, alpha));
+            fill_rect(pm, x, top, half, 2.0, rgba(color, 0.95));
+            fill_rect(pm, x, bottom - 2.0, half, 2.0, rgba(color, 0.95));
+            // Label next to the bar, nudged down if it would overlap the previous one.
+            let mut ly = (top + bottom) / 2.0;
+            for prev in &label_y {
+                if (ly - prev).abs() < 20.0 {
+                    ly = prev + 20.0;
+                }
+            }
+            label_y.push(ly);
+            if let Some(t) = self.text.as_mut() {
+                let text = format!("{label} {lo:.0}-{hi:.0}%");
+                t.draw(pm, &text, 16.0, bx + bw + 8.0, ly + 6.0, color, if inside { 1.0 } else { 0.85 });
+            }
+        }
+        if let Some(t) = self.text.as_mut() {
+            let top = label_y.iter().cloned().fold(f32::INFINITY, f32::min);
+            if top.is_finite() {
+                t.draw(pm, &spell.name, 15.0, bx + bw + 8.0, top - 14.0, [255, 255, 255], 0.9);
             }
         }
     }
