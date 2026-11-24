@@ -62,11 +62,6 @@ impl Catalog {
     pub fn known_cooldowns(&self) -> usize {
         self.skills.iter().filter(|s| s.cooldown.is_some()).count()
     }
-
-    /// Best catalog entry for text read from a slot (fuzzy, ignores case, spaces and punctuation).
-    pub fn best_match(&self, text: &str) -> Option<&CatalogSkill> {
-        best_match(self.skills.iter().map(|s| (s, std::iter::once(&s.name).chain(&s.aliases))), text)
-    }
 }
 
 /// Lowercase letters and digits only, so "Interrogati on" == "Interrogation".
@@ -92,9 +87,6 @@ pub fn similarity(a: &str, b: &str) -> f32 {
     1.0 - prev[b.len()] as f32 / a.len().max(b.len()) as f32
 }
 
-/// Minimum similarity for `best_match` (strict: used to recognise names the user typed).
-pub const MIN_SIMILARITY: f32 = 0.75;
-
 /// Minimum score to accept the most probable skill for text read by OCR. Low on purpose: the
 /// best candidate across everything is taken, OCR often drops or splits letters.
 pub const MIN_OCR_SCORE: f32 = 0.5;
@@ -114,19 +106,11 @@ pub fn score(text: &str, name: &str) -> f32 {
     s
 }
 
-/// Where a detected skill came from.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Origin {
-    Library,
-    Community,
-}
-
-/// A skill the OCR text could be: name, cooldown (None = unknown), origin and score.
+/// A skill the OCR text could be: name, cooldown (None = unknown) and score.
 #[derive(Clone, Debug)]
 pub struct Guess {
     pub name: String,
     pub cooldown: Option<f32>,
-    pub origin: Origin,
     pub score: f32,
 }
 
@@ -141,31 +125,13 @@ pub fn most_probable(text: &str, library: &[crate::config::SkillPreset], catalog
         }
     };
     for p in library {
-        consider(Guess { name: p.name.clone(), cooldown: Some(p.cooldown), origin: Origin::Library, score: score(text, &p.name) });
+        consider(Guess { name: p.name.clone(), cooldown: Some(p.cooldown), score: score(text, &p.name) });
     }
     for c in &catalog.skills {
         let s = std::iter::once(&c.name).chain(&c.aliases).map(|n| score(text, n)).fold(0.0f32, f32::max);
-        consider(Guess { name: c.name.clone(), cooldown: c.cooldown, origin: Origin::Community, score: s });
+        consider(Guess { name: c.name.clone(), cooldown: c.cooldown, score: s });
     }
     best.filter(|g| g.score > 0.0)
-}
-
-pub fn best_match<'a, T: 'a, N: AsRef<str> + 'a>(
-    items: impl Iterator<Item = (T, impl Iterator<Item = N>)>,
-    text: &str,
-) -> Option<T> {
-    let t = normalize(text);
-    if t.len() < 3 {
-        return None;
-    }
-    let mut best: Option<(T, f32)> = None;
-    for (item, names) in items {
-        let score = names.map(|n| similarity(&t, &normalize(n.as_ref()))).fold(0.0f32, f32::max);
-        if score >= MIN_SIMILARITY && best.as_ref().is_none_or(|(_, b)| score > *b) {
-            best = Some((item, score));
-        }
-    }
-    best.map(|(i, _)| i)
 }
 
 #[cfg(test)]
@@ -181,12 +147,13 @@ mod tests {
     #[test]
     fn matches_wrapped_and_misread_names() {
         let c: Catalog = serde_json::from_str(EMBEDDED).unwrap();
-        assert_eq!(c.best_match("Interrogati on").unwrap().name, "Interrogation");
-        assert_eq!(c.best_match("Needle's\nEye").unwrap().name, "Needle's Eye");
-        assert_eq!(c.best_match("Shou1der Throw").unwrap().name, "Shoulder Throw");
-        assert_eq!(c.best_match("Scroll of Celeritas").unwrap().name, "Scroll of Celeritas");
-        assert!(c.best_match("Scroll of Something").is_none());
-        assert!(c.best_match("").is_none());
+        let g = |t: &str| most_probable(t, &[], &c).filter(|g| g.score >= MIN_OCR_SCORE).map(|g| g.name);
+        assert_eq!(g("Interrogati on").as_deref(), Some("Interrogation"));
+        assert_eq!(g("Needle's
+Eye").as_deref(), Some("Needle's Eye"));
+        assert_eq!(g("Shou1der Throw").as_deref(), Some("Shoulder Throw"));
+        assert_eq!(g("Scroll of Celeritas").as_deref(), Some("Scroll of Celeritas"));
+        assert_eq!(g("").as_deref(), None);
     }
 
     #[test]
@@ -201,7 +168,6 @@ mod tests {
         assert_eq!(g("I gnis").as_deref(), Some("Ignis"));
         assert_eq!(g("Telorurn").as_deref(), Some("Telorum"));
         assert_eq!(g("my custom m0ve").as_deref(), Some("My Custom Move"));
-        assert_eq!(most_probable("My Custom Move", &lib, &c).unwrap().origin, Origin::Library);
         assert_eq!(g("xq").as_deref(), None);
     }
 }
