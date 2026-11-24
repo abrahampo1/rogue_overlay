@@ -26,6 +26,7 @@ The executable ends up in `target\release\rogue-overlay.exe`. `config.json` and 
    - wheel or PageUp/PageDown changes the height, slot spacing or text size; with **Ctrl** it changes the width or slot size;
    - arrows move the selected element 1 px (10 px with Shift);
    - **C** with the cursor over the EMPTY part of the in-game bar picks that colour for the numeric %;
+   - **Ctrl+Z** or **Undo** undoes the last change (up to 200 steps); **R** or **Reset selected** puts the selected element back to its default position and size; **Reset all** does it for everything;
    - **Esc**, **Enter**, **F6** or the **Done** button saves and exits.
 
 | Key | Action |

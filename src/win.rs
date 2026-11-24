@@ -47,8 +47,9 @@ pub fn set_cursor(kind: CursorKind) {
 /// Signalled by the hook thread once its hooks are uninstalled.
 static HOOKS_DONE: Mutex<Option<std::sync::mpsc::Receiver<()>>> = Mutex::new(None);
 
-/// Keys edit mode keeps for itself (arrows, PageUp/Down, Esc, Enter) so they do not reach the game.
-const EDIT_KEYS: [u32; 8] = [0x25, 0x26, 0x27, 0x28, 0x21, 0x22, 0x1B, 0x0D];
+/// Keys edit mode keeps for itself (arrows, PageUp/Down, Esc, Enter, R, Z) so they do not reach
+/// the game.
+const EDIT_KEYS: [u32; 10] = [0x25, 0x26, 0x27, 0x28, 0x21, 0x22, 0x1B, 0x0D, 0x52, 0x5A];
 
 pub fn set_game_title(title: &str) {
     if let Ok(mut t) = GAME_TITLE.lock() {

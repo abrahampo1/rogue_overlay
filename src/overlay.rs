@@ -83,6 +83,50 @@ impl Edges {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum EditAction {
+    Undo,
+    ResetSelected,
+    ResetAll,
+    Done,
+}
+
+/// Everything edit mode can change: positions, sizes and the picked mana colour. Snapshots of it
+/// make the undo history.
+#[derive(Clone, PartialEq, Debug)]
+struct Layout {
+    mana: (i32, i32, i32, i32),
+    detect: (i32, i32, i32, i32),
+    empty_color: [u8; 3],
+    hotbar: (i32, i32, i32, i32),
+    ore: (i32, i32, f32),
+}
+
+impl Layout {
+    fn of(c: &Config) -> Self {
+        let (m, d, h, o) = (&c.mana, &c.mana.detect, &c.hotbar, &c.ore);
+        Self {
+            mana: (m.x, m.y, m.w, m.h),
+            detect: (d.x, d.y, d.w, d.h),
+            empty_color: d.empty_color,
+            hotbar: (h.center_offset_x, h.y, h.slot_size, h.slot_step),
+            ore: (o.x, o.y, o.text_size),
+        }
+    }
+
+    fn apply(&self, c: &mut Config) {
+        (c.mana.x, c.mana.y, c.mana.w, c.mana.h) = self.mana;
+        let d = &mut c.mana.detect;
+        (d.x, d.y, d.w, d.h) = self.detect;
+        d.empty_color = self.empty_color;
+        let h = &mut c.hotbar;
+        (h.center_offset_x, h.y, h.slot_size, h.slot_step) = self.hotbar;
+        (c.ore.x, c.ore.y, c.ore.text_size) = self.ore;
+    }
+}
+
+const UNDO_LIMIT: usize = 200;
+
 /// Distance in px from an edge of the mana bar that grabs its resize handle.
 const HANDLE_GRAB: i32 = 7;
 
@@ -123,8 +167,10 @@ struct App {
     shown: bool,
     /// Keys currently down and when their last KeyDown arrived (to tell auto-repeat apart).
     held: HashMap<u32, Instant>,
-    /// Edit mode "Done" button (x, y, w, h).
-    done_btn: Option<(f32, f32, f32, f32)>,
+    /// Edit mode buttons drawn on screen: (x, y, w, h) and what they do.
+    edit_buttons: Vec<((f32, f32, f32, f32), EditAction)>,
+    /// Edit mode undo history (positions and sizes before each change).
+    undo: Vec<Layout>,
     selected: Option<usize>,
     /// Slots detected on screen (auto mode) and when the hotbar was last scanned.
     detected_slots: usize,
@@ -249,7 +295,8 @@ impl App {
             resize: None,
             shown: false,
             held: HashMap::new(),
-            done_btn: None,
+            edit_buttons: Vec::new(),
+            undo: Vec::new(),
             selected: None,
             detected_slots: 0,
             last_slot_scan: Instant::now() - Duration::from_secs(10),
@@ -962,6 +1009,9 @@ impl App {
         }
         self.editing = on;
         self.drag = None;
+        if on {
+            self.undo.clear();
+        }
         win::set_editing(self.hwnd, on);
         if !on {
             if let Err(e) = config::save(&self.cfg) {
@@ -1111,7 +1161,12 @@ impl App {
     fn edit_key(&mut self, vk: u32) -> bool {
         let step = if win::shift_down() { 10 } else { 1 };
         let ctrl = [0x11, 0xA2, 0xA3].iter().any(|k| self.held.contains_key(k));
+        if matches!(vk, 0x21 | 0x22 | 0x25..=0x28 | 0x43) {
+            self.checkpoint();
+        }
         match vk {
+            0x5A if ctrl => self.edit_action(EditAction::Undo),
+            0x52 => self.edit_action(EditAction::ResetSelected),
             0x25 => self.move_target(self.focus, -step, 0),
             0x27 => self.move_target(self.focus, step, 0),
             0x26 => self.move_target(self.focus, 0, -step),
@@ -1123,6 +1178,64 @@ impl App {
             _ => return false,
         }
         true
+    }
+
+    /// Remembers the current layout so the next change can be undone (skips duplicates).
+    fn checkpoint(&mut self) {
+        let l = Layout::of(&self.cfg);
+        if self.undo.last() != Some(&l) {
+            self.undo.push(l);
+            if self.undo.len() > UNDO_LIMIT {
+                self.undo.remove(0);
+            }
+        }
+    }
+
+    fn edit_action(&mut self, action: EditAction) {
+        match action {
+            EditAction::Done => {
+                self.set_editing(false);
+                return;
+            }
+            EditAction::Undo => {
+                let Some(l) = self.undo.pop() else { return };
+                l.apply(&mut self.cfg);
+            }
+            EditAction::ResetSelected => {
+                self.checkpoint();
+                self.reset_target(self.focus);
+            }
+            EditAction::ResetAll => {
+                self.checkpoint();
+                for t in [Target::Mana, Target::Detect, Target::Hotbar, Target::Ore] {
+                    self.reset_target(t);
+                }
+            }
+        }
+        self.needs_redraw = true;
+        self.publish_cfg();
+    }
+
+    /// Puts one element back to its default position and size.
+    fn reset_target(&mut self, t: Target) {
+        let d = Config::default();
+        let c = &mut self.cfg;
+        match t {
+            Target::Mana => {
+                (c.mana.x, c.mana.y, c.mana.w, c.mana.h) = (d.mana.x, d.mana.y, d.mana.w, d.mana.h);
+            }
+            Target::Detect => {
+                let (cd, dd) = (&mut c.mana.detect, &d.mana.detect);
+                (cd.x, cd.y, cd.w, cd.h) = (dd.x, dd.y, dd.w, dd.h);
+            }
+            Target::Hotbar => {
+                let (ch, dh) = (&mut c.hotbar, &d.hotbar);
+                (ch.center_offset_x, ch.y, ch.slot_size, ch.slot_step) = (dh.center_offset_x, dh.y, dh.slot_size, dh.slot_step);
+            }
+            Target::Ore => {
+                (c.ore.x, c.ore.y, c.ore.text_size) = (d.ore.x, d.ore.y, d.ore.text_size);
+            }
+        }
     }
 
     /// Takes the average colour (3x3) under the cursor as the empty-track colour.
@@ -1145,9 +1258,14 @@ impl App {
             win::Msg::Tick => self.tick(),
             win::Msg::MouseDown { x, y } if self.editing => {
                 let (fx, fy) = (x as f32, y as f32);
-                if self.done_btn.is_some_and(|(bx, by, bw, bh)| fx >= bx && fx < bx + bw && fy >= by && fy < by + bh) {
-                    self.set_editing(false);
+                let button = self.edit_buttons.iter().find(|((bx, by, bw, bh), _)| fx >= *bx && fx < bx + bw && fy >= *by && fy < by + bh);
+                if let Some((_, action)) = button.copied() {
+                    self.edit_action(action);
                     return;
+                }
+                // Anything grabbed below is about to change: remember the layout for undo.
+                if self.mana_handle_at(x, y).is_some() || self.hit(x, y).is_some() {
+                    self.checkpoint();
                 }
                 if let Some(e) = self.mana_handle_at(x, y) {
                     self.focus = Target::Mana;
@@ -1181,6 +1299,7 @@ impl App {
             win::Msg::Wheel { x, y, delta, ctrl } if self.editing => {
                 let t = self.hit(x, y).unwrap_or(self.focus);
                 self.focus = t;
+                self.checkpoint();
                 self.resize_target(t, delta.signum(), ctrl);
             }
             _ => {}
@@ -1420,7 +1539,7 @@ impl App {
                 "Drag to move · Mana bar: drag the white handles to resize it".to_string(),
                 "Wheel / PageUp-PageDown: height · slot spacing · text size".into(),
                 "Ctrl + wheel: width · slot size · Arrows: 1 px (Shift 10)".into(),
-                "C: pick the EMPTY bar colour under the cursor (for the numeric %)".into(),
+                "C: pick the EMPTY bar colour under the cursor (for the numeric %) · Ctrl+Z: undo · R: reset selected".into(),
                 format!("Selected: {:?} {:?}", self.focus, self.target_rect(self.focus, w, h)),
             ]);
         } else {
@@ -1438,17 +1557,30 @@ impl App {
             }
         }
 
-        self.done_btn = None;
+        self.edit_buttons.clear();
         if self.editing {
-            let (bw, bh) = (220.0, 36.0);
-            let (bx, by) = ((w as f32 - bw) / 2.0, 60.0 + 24.0 * lines.len() as f32 + 24.0);
-            let shader = Shader::SolidColor(Color::from_rgba8(70, 170, 90, 235));
-            render::fill_round_rect(pm, bx, by, bw, bh, 8.0, shader);
-            stroke_rect(pm, bx + 0.5, by + 0.5, bw - 1.0, bh - 1.0, 1.0, Color::from_rgba8(255, 255, 255, 200));
-            if let Some(t) = self.text.as_mut() {
-                t.draw_centered(pm, "Done (Esc)", 18.0, bx + bw / 2.0, by + bh / 2.0, [255, 255, 255], 1.0);
+            let can_undo = !self.undo.is_empty();
+            let buttons = [
+                (EditAction::Undo, "Undo (Ctrl+Z)", if can_undo { [70, 110, 170] } else { [70, 70, 80] }, 150.0),
+                (EditAction::ResetSelected, "Reset selected (R)", [110, 90, 60], 170.0),
+                (EditAction::ResetAll, "Reset all", [150, 60, 60], 110.0),
+                (EditAction::Done, "Done (Esc)", [70, 170, 90], 130.0),
+            ];
+            let gap = 10.0;
+            let bh = 34.0;
+            let total: f32 = buttons.iter().map(|b| b.3).sum::<f32>() + gap * (buttons.len() as f32 - 1.0);
+            let mut bx = (w as f32 - total) / 2.0;
+            let by = 60.0 + 24.0 * lines.len() as f32 + 24.0;
+            for (action, label, color, bw) in buttons {
+                let shader = Shader::SolidColor(rgba(color, 0.92));
+                render::fill_round_rect(pm, bx, by, bw, bh, 8.0, shader);
+                stroke_rect(pm, bx + 0.5, by + 0.5, bw - 1.0, bh - 1.0, 1.0, Color::from_rgba8(255, 255, 255, 180));
+                if let Some(t) = self.text.as_mut() {
+                    t.draw_centered(pm, label, 16.0, bx + bw / 2.0, by + bh / 2.0, [255, 255, 255], 1.0);
+                }
+                self.edit_buttons.push(((bx, by, bw, bh), action));
+                bx += bw + gap;
             }
-            self.done_btn = Some((bx, by, bw, bh));
         }
     }
 }
