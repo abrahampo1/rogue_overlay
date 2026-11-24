@@ -116,6 +116,8 @@ struct App {
     ocr_slots: usize,
     ocr_forced: bool,
     ocr_text: Vec<String>,
+    ocr_guess: Vec<Option<(String, f32)>>,
+    detect_info: String,
 }
 
 thread_local! {
@@ -219,6 +221,8 @@ impl App {
             ocr_slots: 0,
             ocr_forced: true,
             ocr_text: Vec::new(),
+            ocr_guess: Vec::new(),
+            detect_info: String::new(),
         };
         app.apply_config();
         app
@@ -288,6 +292,8 @@ impl App {
             .map(|e| e.map(|t| t.saturating_duration_since(now).as_secs_f32()).unwrap_or(0.0))
             .collect();
         st.ocr_text = self.ocr_text.clone();
+        st.ocr_guess = self.ocr_guess.clone();
+        st.detect_info = self.detect_info.clone();
         st.detecting = self.ocr_rx.is_some();
         st.ore_remaining = self.ore_next.map(|t| t.saturating_duration_since(now).as_secs_f32());
         st.error = self.error.clone();
@@ -655,8 +661,7 @@ impl App {
             return;
         }
         let due = self.ocr_forced || n != self.ocr_slots || now - self.last_ocr >= Duration::from_secs(8);
-        // Only when the hotbar is actually on screen (selection could be read).
-        if !due || self.read_selected(band, game).is_none() {
+        if !due {
             return;
         }
         self.ocr_forced = false;
@@ -664,7 +669,9 @@ impl App {
         self.ocr_slots = n;
         let size = hb.slot_size;
         let w = game.w;
-        let crops: Vec<(Vec<u8>, u32, u32)> = (0..n)
+        // A slot is read only if its crop looks like a slot body (normal or lit); others (hotbar
+        // hidden behind a menu, slot not there) get no text.
+        let crops: Vec<Option<(Vec<u8>, u32, u32)>> = (0..n)
             .map(|i| {
                 // The slot body (inside the frame), scaled up 4x: OCR reads small text much better.
                 let (sx, _, _) = self.slot_rect(i, game.w, game.h);
@@ -672,19 +679,30 @@ impl App {
                 let cw = (size - 6).min(w - x0).max(1);
                 let ch = size.max(1);
                 let mut img = image::RgbaImage::new(cw as u32, ch as u32);
+                let mut body = 0;
                 for y in 0..ch {
                     for x in 0..cw {
                         let o = ((y * w + x0 + x) * 4) as usize;
                         if let Some(p) = band.get(o..o + 4) {
+                            if self.body_class(p) != 0 {
+                                body += 1;
+                            }
                             img.put_pixel(x as u32, y as u32, image::Rgba([p[0], p[1], p[2], 255]));
                         }
                     }
                 }
+                if body * 100 < cw * ch * 25 {
+                    return None;
+                }
                 let big = image::imageops::resize(&img, cw as u32 * 4, ch as u32 * 4, image::imageops::FilterType::CatmullRom);
                 let (bw, bh) = big.dimensions();
-                (big.into_raw(), bw, bh)
+                Some((big.into_raw(), bw, bh))
             })
             .collect();
+        if crops.iter().all(Option::is_none) {
+            self.detect_info = "Hotbar not visible".into();
+            return;
+        }
         let (tx, rx) = std::sync::mpsc::channel();
         self.ocr_rx = Some(rx);
         std::thread::spawn(move || {
@@ -692,7 +710,10 @@ impl App {
             let texts = match win::ocr_engine() {
                 Ok(engine) => crops
                     .iter()
-                    .map(|(px, bw, bh)| win::ocr_bgra(&engine, px, *bw as i32, *bh as i32).unwrap_or_default())
+                    .map(|c| match c {
+                        Some((px, bw, bh)) => win::ocr_bgra(&engine, px, *bw as i32, *bh as i32).unwrap_or_default(),
+                        None => String::new(),
+                    })
                     .collect(),
                 Err(_) => vec![String::new(); crops.len()],
             };
@@ -714,32 +735,39 @@ impl App {
         };
         self.ocr_rx = None;
         let mut changed = false;
+        let (mut read, mut matched) = (0, 0);
+        let mut guesses = Vec::with_capacity(texts.len());
         for (i, text) in texts.iter().enumerate() {
-            let Some(slot) = self.cfg.hotbar.skills.get(i) else { break };
-            if !(slot.name.trim().is_empty() || slot.auto) {
+            if text.trim().is_empty() {
+                guesses.push(None);
                 continue;
             }
-            // The user's own library first (their cooldowns win), then the community catalog.
-            let lib = catalog::best_match(
-                self.cfg.skill_library.iter().map(|p| (p, std::iter::once(&p.name))),
-                text,
-            );
-            let (name, cooldown) = match (lib, self.catalog.best_match(text)) {
-                (Some(p), _) => (p.name.clone(), Some(p.cooldown)),
-                // Unknown cooldown: 0 = not tracked, rather than showing a made-up timer.
-                (None, Some(c)) => (c.name.clone(), Some(c.cooldown.unwrap_or(0.0))),
-                (None, None) => continue,
-            };
-            let slot = &mut self.cfg.hotbar.skills[i];
-            if slot.name != name || cooldown.is_some_and(|c| c != slot.cooldown) || !slot.auto {
-                slot.name = name;
-                if let Some(c) = cooldown {
-                    slot.cooldown = c;
-                }
+            read += 1;
+            // Most probable skill across the user's library and the community catalog.
+            let guess = catalog::most_probable(text, &self.cfg.skill_library, &self.catalog);
+            guesses.push(guess.as_ref().map(|g| (g.name.clone(), g.score)));
+            let Some(g) = guess.filter(|g| g.score >= catalog::MIN_OCR_SCORE) else { continue };
+            matched += 1;
+            let Some(slot) = self.cfg.hotbar.skills.get_mut(i) else { break };
+            // A name the user set is kept only while it still fits what the slot shows (e.g. they
+            // corrected an OCR misread). If the hotbar changed, the slot follows the game.
+            let user_name_fits = !slot.auto && !slot.name.trim().is_empty() && catalog::score(text, &slot.name) >= 0.6;
+            if user_name_fits {
+                continue;
+            }
+            // The user's library has the cooldown they chose; else the catalog's; unknown = 0
+            // (not tracked) rather than a made-up timer.
+            let lib_cd = self.cfg.skill_library.iter().find(|p| p.name.eq_ignore_ascii_case(&g.name)).map(|p| p.cooldown);
+            let cooldown = lib_cd.or(g.cooldown).unwrap_or(0.0);
+            if slot.name != g.name || slot.cooldown != cooldown || !slot.auto {
+                slot.name = g.name;
+                slot.cooldown = cooldown;
                 slot.auto = true;
                 changed = true;
             }
         }
+        self.detect_info = format!("Last detection: {read} slots read, {matched} matched");
+        self.ocr_guess = guesses;
         self.ocr_text = texts;
         if changed {
             self.publish_cfg();

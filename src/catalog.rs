@@ -92,8 +92,63 @@ pub fn similarity(a: &str, b: &str) -> f32 {
     1.0 - prev[b.len()] as f32 / a.len().max(b.len()) as f32
 }
 
-/// Minimum similarity to accept a match: tolerates a couple of OCR mistakes, not a different skill.
+/// Minimum similarity for `best_match` (strict: used to recognise names the user typed).
 pub const MIN_SIMILARITY: f32 = 0.75;
+
+/// Minimum score to accept the most probable skill for text read by OCR. Low on purpose: the
+/// best candidate across everything is taken, OCR often drops or splits letters.
+pub const MIN_OCR_SCORE: f32 = 0.5;
+
+/// How well OCR text fits a skill name (0..1): edit-distance similarity, with a boost when one
+/// contains the other (OCR missing the start or the end of a name).
+pub fn score(text: &str, name: &str) -> f32 {
+    let (t, n) = (normalize(text), normalize(name));
+    if t.len() < 3 || n.is_empty() {
+        return 0.0;
+    }
+    let mut s = similarity(&t, &n);
+    let (short, long) = if t.len() <= n.len() { (&t, &n) } else { (&n, &t) };
+    if short.len() >= 4 && long.contains(short.as_str()) {
+        s = s.max(0.6 + 0.4 * short.len() as f32 / long.len() as f32);
+    }
+    s
+}
+
+/// Where a detected skill came from.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Origin {
+    Library,
+    Community,
+}
+
+/// A skill the OCR text could be: name, cooldown (None = unknown), origin and score.
+#[derive(Clone, Debug)]
+pub struct Guess {
+    pub name: String,
+    pub cooldown: Option<f32>,
+    pub origin: Origin,
+    pub score: f32,
+}
+
+/// The most probable skill for OCR text among the user's library and the community catalog.
+/// On a tie the user's library wins (their cooldowns). Returns the best guess even below
+/// `MIN_OCR_SCORE`, so callers can show it; they decide whether to accept it.
+pub fn most_probable(text: &str, library: &[crate::config::SkillPreset], catalog: &Catalog) -> Option<Guess> {
+    let mut best: Option<Guess> = None;
+    let mut consider = |g: Guess| {
+        if best.as_ref().is_none_or(|b| g.score > b.score + 1e-4) {
+            best = Some(g);
+        }
+    };
+    for p in library {
+        consider(Guess { name: p.name.clone(), cooldown: Some(p.cooldown), origin: Origin::Library, score: score(text, &p.name) });
+    }
+    for c in &catalog.skills {
+        let s = std::iter::once(&c.name).chain(&c.aliases).map(|n| score(text, n)).fold(0.0f32, f32::max);
+        consider(Guess { name: c.name.clone(), cooldown: c.cooldown, origin: Origin::Community, score: s });
+    }
+    best.filter(|g| g.score > 0.0)
+}
 
 pub fn best_match<'a, T: 'a, N: AsRef<str> + 'a>(
     items: impl Iterator<Item = (T, impl Iterator<Item = N>)>,
@@ -133,6 +188,22 @@ mod tests {
         assert!(c.best_match("Scroll of Something").is_none());
         assert!(c.best_match("").is_none());
     }
+
+    #[test]
+    fn most_probable_handles_bad_ocr() {
+        let c: Catalog = serde_json::from_str(EMBEDDED).unwrap();
+        let lib = vec![crate::config::SkillPreset { name: "My Custom Move".into(), cooldown: 7.0 }];
+        let g = |t: &str| most_probable(t, &lib, &c).filter(|g| g.score >= MIN_OCR_SCORE).map(|g| g.name);
+        assert_eq!(g("nterroga on").as_deref(), Some("Interrogation"));
+        assert_eq!(g("N eedle's Eye").as_deref(), Some("Needle's Eye"));
+        assert_eq!(g("Elegant Sl").as_deref(), Some("Elegant Slash"));
+        assert_eq!(g("Shoulder Thr").as_deref(), Some("Shoulder Throw"));
+        assert_eq!(g("I gnis").as_deref(), Some("Ignis"));
+        assert_eq!(g("Telorurn").as_deref(), Some("Telorum"));
+        assert_eq!(g("my custom m0ve").as_deref(), Some("My Custom Move"));
+        assert_eq!(most_probable("My Custom Move", &lib, &c).unwrap().origin, Origin::Library);
+        assert_eq!(g("xq").as_deref(), None);
+    }
 }
 
 #[cfg(test)]
@@ -144,5 +215,38 @@ mod online {
         let text = crate::win::http_get(super::REMOTE_URL).unwrap();
         let c: super::Catalog = serde_json::from_str(&text).unwrap();
         assert!(c.skills.len() > 50);
+    }
+}
+
+#[cfg(test)]
+mod ocr_screenshot {
+    /// OCR + most-probable match on a 1920x1080 screenshot of a 12-slot hotbar.
+    /// Run with `ROGUE_TEST_SHOT=path cargo test -- --ignored ocr_screenshot`.
+    #[test]
+    #[ignore]
+    fn reads_hotbar_from_screenshot() {
+        let Some(path) = std::env::var_os("ROGUE_TEST_SHOT") else { return };
+        let img = image::open(path).unwrap().to_rgba8();
+        crate::win::winrt_init();
+        let engine = crate::win::ocr_engine().unwrap();
+        let cat = super::Catalog::load();
+        let mut names = Vec::new();
+        for i in 0..12u32 {
+            // Same crop as the overlay: slot body, scaled 4x, BGRA.
+            let (x0, y0, cw, ch) = (532 + 72 * i + 3, 1007, 54, 60);
+            let mut crop = image::imageops::crop_imm(&img, x0, y0, cw, ch).to_image();
+            for p in crop.pixels_mut() {
+                p.0.swap(0, 2);
+            }
+            let big = image::imageops::resize(&crop, cw * 4, ch * 4, image::imageops::FilterType::CatmullRom);
+            let text = crate::win::ocr_bgra(&engine, big.as_raw(), (cw * 4) as i32, (ch * 4) as i32).unwrap();
+            let g = super::most_probable(&text, &[], &cat).filter(|g| g.score >= super::MIN_OCR_SCORE);
+            println!("{text:?} -> {:?}", g.as_ref().map(|g| (&g.name, g.score)));
+            names.push(g.map(|g| g.name).unwrap_or_default());
+        }
+        assert_eq!(
+            names,
+            ["Rapier", "Needle's Eye", "Elegant Slash", "Interrogation", "Agility", "Telorum", "The Soul", "Armis", "Shoulder Throw", "Viribus", "Gelidus", "Ignis"]
+        );
     }
 }

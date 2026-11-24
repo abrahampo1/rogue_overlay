@@ -386,6 +386,9 @@ impl Panel {
             if ui.add_enabled(!detecting, egui::Button::new(if detecting { "Detecting…" } else { "Detect now" })).clicked() {
                 self.send(Cmd::DetectSkills);
             }
+            if !self.status.detect_info.is_empty() {
+                ui.label(RichText::new(&self.status.detect_info).color(Color32::GRAY));
+            }
         });
         ui.horizontal(|ui| {
             ui.label(RichText::new(format!(
@@ -645,9 +648,8 @@ impl Panel {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(format!("Slot {}", i + 1)).strong().size(16.0));
                 if s.auto {
-                    let read = status.ocr_text.get(i).cloned().unwrap_or_default();
-                    ui.label(RichText::new(format!("auto-detected (read: \"{read}\")")).color(Color32::LIGHT_BLUE))
-                        .on_hover_text("Editing the slot stops automatic updates for it.");
+                    ui.label(RichText::new("auto-detected").color(Color32::LIGHT_BLUE))
+                        .on_hover_text("Filled from the hotbar. A name you type is kept while it fits what the slot shows.");
                 }
             });
             egui::Grid::new(("slot_editor", i)).num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
@@ -668,6 +670,13 @@ impl Panel {
                 });
                 ui.end_row();
             });
+            if let Some(read) = status.ocr_text.get(i).filter(|t| !t.trim().is_empty()) {
+                let guess = match status.ocr_guess.get(i).cloned().flatten() {
+                    Some((name, sc)) => format!("most probable: {name} ({:.0}%{})", sc * 100.0, if sc < crate::catalog::MIN_OCR_SCORE { ", too low to apply" } else { "" }),
+                    None => "no candidate".into(),
+                };
+                ui.label(RichText::new(format!("Hotbar reads \"{read}\" → {guess}")).color(Color32::GRAY));
+            }
             if let Some(c) = catalog_entry(catalog, &s.name) {
                 ui.label(RichText::new(catalog_tooltip(c)).color(Color32::GRAY));
             }

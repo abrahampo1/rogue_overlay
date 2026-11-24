@@ -34,6 +34,10 @@ pub struct Status {
     pub slots: usize,
     /// Text read from each slot by the last skill detection.
     pub ocr_text: Vec<String>,
+    /// Most probable skill for each slot's text and its score (0..1).
+    pub ocr_guess: Vec<Option<(String, f32)>>,
+    /// One-line summary of the last detection.
+    pub detect_info: String,
     pub detecting: bool,
     /// Seconds left for each slot (0 = ready).
     pub cooldowns: Vec<f32>,
