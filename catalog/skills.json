@@ -504,13 +504,14 @@
     95.0
    ],
    "snap_mana": [
-    50.0,
-    60.0
+    45.0,
+    55.0
    ],
    "source": "https://rogue-lineage.fandom.com/wiki/Ignis",
    "classes": [
     "Spells"
-   ]
+   ],
+   "notes": "Snap range 45-55% reported by a player (the wiki says 50-60%)."
   },
   {
    "name": "Impale",
