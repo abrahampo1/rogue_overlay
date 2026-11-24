@@ -50,7 +50,7 @@ Coordinates are relative to the Roblox client area. A negative value is measured
 
 The measurements come from 1920×1080 screenshots. If the numeric % is wrong (for example, stuck at 0 % or 100 %), enter F6 and press **C** over the empty part of the bar to pick its colour.
 
-For the % to work, the overlay hides itself from screen captures (Settings → "Hide the overlay from captures / OBS"). Otherwise the reading would see the skin drawn on top. The trade-off is that OBS and Discord will not show the overlay. If you want to record it, turn that option off and do not use the numeric %.
+By default the overlay hides itself from screen captures (Settings → "Hide the overlay from captures / OBS"), so OBS and Discord do not show it. If you turn that off to record it, the overlay's own drawing shows up in its screen reads too. It then subtracts what it drew (it knows each pixel and its transparency) to recover the game underneath. Fully opaque skin pixels hide the game; rows behind them take the value of the readable rows around them.
 
 Screen reads cost a little game performance, so their rate is configurable: mana reads/s (default 20) in the Mana skins tab and hotbar reads/s (default 10) in the Skill cooldowns tab. Both are capped by the overlay FPS in Settings.
 

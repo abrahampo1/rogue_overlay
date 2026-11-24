@@ -592,7 +592,7 @@ impl Panel {
             ui.checkbox(&mut c.only_when_focused, "");
             ui.end_row();
             ui.label("Hide the overlay from captures / OBS")
-                .on_hover_text("Needed to read the mana % correctly: otherwise the capture sees the overlay's own skin.");
+                .on_hover_text("Hides the overlay from OBS / Discord. With it off, the overlay subtracts its own drawing when reading the screen; only fully opaque skin pixels hide the game.");
             ui.checkbox(&mut c.exclude_from_capture, "(recommended)");
             ui.end_row();
         });

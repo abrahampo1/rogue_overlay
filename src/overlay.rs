@@ -639,7 +639,10 @@ impl App {
             self.last_hotbar_sample = now;
             let top = resolve(hb.y, rect.h);
             let band_h = hb.slot_size.max(1);
-            if let Some(band) = win::capture(rect.x, rect.y + top, rect.w, band_h) {
+            if let Some(mut band) = win::capture(rect.x, rect.y + top, rect.w, band_h) {
+                // Remove the overlay's own drawing (cooldown shade, selection border) if it shows
+                // up in captures.
+                let _ = self.unblend(&mut band, 0, top, rect.w, band_h);
                 if auto_count && now - self.last_slot_scan >= Duration::from_millis(500) {
                     self.last_slot_scan = now;
                     if let Some(n) = self.scan_slots(&band, rect) {
@@ -674,25 +677,86 @@ impl App {
         let d = &self.cfg.mana.detect;
         let x = game.x + resolve(d.x, game.w);
         let y = game.y + resolve(d.y, game.h);
-        let px = win::capture(x, y, d.w, d.h)?;
+        let mut px = win::capture(x, y, d.w, d.h)?;
+        let known = self.unblend(&mut px, resolve(d.x, game.w), resolve(d.y, game.h), d.w, d.h);
         let t = d.tolerance as i32;
         let e = d.empty_color;
-        let full = px
-            .chunks_exact((d.w * 4) as usize)
-            .rev()
-            .take_while(|row| {
-                let empty = row
-                    .chunks_exact(4)
-                    .filter(|p| {
-                        (p[2] as i32 - e[0] as i32).abs() <= t
-                            && (p[1] as i32 - e[1] as i32).abs() <= t
-                            && (p[0] as i32 - e[2] as i32).abs() <= t
-                    })
-                    .count();
-                empty * 2 < d.w as usize
-            })
-            .count();
+        // From the bottom up: count rows that are not the empty-track colour. Rows hidden behind
+        // opaque skin pixels (unknown) are decided by the next readable row above them.
+        let (mut full, mut pending) = (0usize, 0usize);
+        let mut stopped = false;
+        for (r, row) in px.chunks_exact((d.w * 4) as usize).enumerate().rev() {
+            let (mut empty, mut seen) = (0, 0);
+            for (c, p) in row.chunks_exact(4).enumerate() {
+                if !known[r * d.w as usize + c] {
+                    continue;
+                }
+                seen += 1;
+                if (p[2] as i32 - e[0] as i32).abs() <= t
+                    && (p[1] as i32 - e[1] as i32).abs() <= t
+                    && (p[0] as i32 - e[2] as i32).abs() <= t
+                {
+                    empty += 1;
+                }
+            }
+            if seen == 0 {
+                pending += 1;
+            } else if empty * 2 < seen {
+                full += pending + 1;
+                pending = 0;
+            } else {
+                stopped = true;
+                break;
+            }
+        }
+        if !stopped {
+            full += pending;
+        }
         Some(full as f32 / d.h.max(1) as f32)
+    }
+
+    /// When the overlay is visible to screen captures ("Hide from captures" off), a capture of
+    /// (x, y, w, h) in game coordinates contains what the overlay drew on top of the game. This
+    /// removes it, using the overlay's own last frame: game = (captured - drawn) / (1 - alpha).
+    /// Pixels where the overlay is nearly opaque cannot be recovered and come back as `false`
+    /// in the returned mask (everything else `true`).
+    fn unblend(&self, buf: &mut [u8], x: i32, y: i32, w: i32, h: i32) -> Vec<bool> {
+        let mut known = vec![true; (w.max(0) * h.max(0)) as usize];
+        if self.cfg.exclude_from_capture || !self.shown {
+            return known;
+        }
+        let Some(pm) = self.pixmap.as_ref() else { return known };
+        let (pw, ph) = (pm.width() as i32, pm.height() as i32);
+        let data = pm.data();
+        for row in 0..h {
+            let py = y + row;
+            if py < 0 || py >= ph {
+                continue;
+            }
+            for col in 0..w {
+                let px_ = x + col;
+                if px_ < 0 || px_ >= pw {
+                    continue;
+                }
+                let s = ((py * pw + px_) * 4) as usize;
+                let a = data[s + 3] as f32 / 255.0;
+                if a <= 0.0 {
+                    continue;
+                }
+                let i = (row * w + col) as usize;
+                if a > 0.85 {
+                    known[i] = false;
+                    continue;
+                }
+                let o = i * 4;
+                // Captured is BGRA, the overlay frame is premultiplied RGBA.
+                for (k, src) in [(0usize, 2usize), (1, 1), (2, 0)] {
+                    let v = (buf[o + k] as f32 - data[s + src] as f32) / (1.0 - a);
+                    buf[o + k] = v.round().clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        known
     }
 
     /// Slots in use: fixed count from the config, or the number detected on screen.
