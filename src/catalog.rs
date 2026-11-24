@@ -132,3 +132,15 @@ mod tests {
         assert!(c.best_match("").is_none());
     }
 }
+
+#[cfg(test)]
+mod online {
+    /// Hits GitHub; run with `cargo test -- --ignored`.
+    #[test]
+    #[ignore]
+    fn downloads_catalog_from_github() {
+        let text = crate::win::http_get(super::REMOTE_URL).unwrap();
+        let c: super::Catalog = serde_json::from_str(&text).unwrap();
+        assert!(c.skills.len() > 50);
+    }
+}
